@@ -4931,7 +4931,7 @@ class VoiceWatermarkEngine {
   // SUPER RESTRICTED DEV AUTHENTICATION & ROLE MANAGER (JC_MORAL)
   // ==========================================================================
   const PRODUCER_HANDLE = 'JC_MORAL';
-  const DEFAULT_MASTER_KEY_HASH = 'c75c2d251a14cf2f2fd2dc936d461044c82e5c8ca16ae287627af9c523c947b4'; // sha256('JC-MORAL-DEV-7790-2026')
+  const DEFAULT_MASTER_KEY_HASH = 'c75c2d251a14cf2f2fd2dc936d461044c82e5c8ca16ae287627af9c523c947b4';
 
   async function sha256Hex(str) {
     const enc = new TextEncoder().encode(str);
@@ -5040,7 +5040,7 @@ class VoiceWatermarkEngine {
     const enteredHash = await sha256Hex(enteredKey);
     const validHash = localStorage.getItem('ldr_custom_key_hash') || DEFAULT_MASTER_KEY_HASH;
 
-    if (enteredHash === validHash || enteredKey === 'JC-MORAL-DEV-7790-2026' || enteredKey === 'jcmoral2026') {
+    if (enteredHash === validHash || enteredHash === 'f909ecb7db9ae5df87e22c95b410425c27bf8fa2cbbe566914b150993eb7e39a') {
       // SUCCESS
       failedAttempts = 0;
       isDevAuthenticated = true;

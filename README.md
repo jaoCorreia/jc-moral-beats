@@ -37,13 +37,10 @@ Liberado através do portal restrito via **Chave Mestra Clearance**:
 
 ---
 
-## 🔐 Acesso Dev (Chave Mestra)
+## 🔐 Acesso Dev (Área Restrita)
 Para autenticar no modo desenvolvedor / produtor:
 1. Clique no cadeado `🔒` na barra superior ou pressione `Ctrl + Shift + D`.
-2. Insira a **Chave Mestra**:
-```text
-JC-MORAL-DEV-7790-2026
-```
+2. Insira a sua chave mestra privada de produtor configurada no ambiente.
 
 ---
 

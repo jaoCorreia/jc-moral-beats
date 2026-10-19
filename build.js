@@ -777,7 +777,7 @@ const standaloneHtml = `<!DOCTYPE html>
           <span id="dev-login-error-text">Chave incorreta.</span>
         </div>
 
-        <p class="hint">Chave: <code>JC-MORAL-DEV-7790-2026</code> · Atalho: Ctrl+Shift+D</p>
+        <p class="hint">Acesso exclusivo do produtor · Atalho: Ctrl+Shift+D</p>
 
         <div class="flex justify-end gap-1.5" style="margin-top:6px">
           <button id="btn-cancel-dev-login" type="button" class="btn btn-ghost">Cancelar</button>
