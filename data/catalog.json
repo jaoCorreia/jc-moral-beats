@@ -1,0 +1,86 @@
+[
+  {
+    "id": "inverno",
+    "title": "Inverno",
+    "artist": "JC_MORAL",
+    "bpm": 82,
+    "type": "audio",
+    "src": "/inverno.mp3",
+    "tags": ["lo-fi", "chill"],
+    "loopStart": 0,
+    "loopEnd": 0,
+    "loopEnabled": true,
+    "maxLoops": 0,
+    "likes": 42,
+    "preset": {
+      "scenery": "street",
+      "palette": "hybrid",
+      "accessory": "none",
+      "sketch": "devil",
+      "intensity": 0.75
+    }
+  },
+  {
+    "id": "cyber-drift",
+    "title": "Cyber Drift",
+    "artist": "JC_MORAL",
+    "bpm": 82,
+    "type": "synth",
+    "synthIndex": 0,
+    "tags": ["synth", "lo-fi"],
+    "loopStart": 0,
+    "loopEnd": 0,
+    "loopEnabled": true,
+    "maxLoops": 0,
+    "likes": 28,
+    "preset": {
+      "scenery": "cybercode",
+      "palette": "cytro",
+      "accessory": "cap",
+      "sketch": "waves",
+      "intensity": 0.90
+    }
+  },
+  {
+    "id": "zima-nebula",
+    "title": "Zima Nebula",
+    "artist": "JC_MORAL",
+    "bpm": 72,
+    "type": "synth",
+    "synthIndex": 1,
+    "tags": ["ambient", "synth"],
+    "loopStart": 0,
+    "loopEnd": 0,
+    "loopEnabled": true,
+    "maxLoops": 0,
+    "likes": 56,
+    "preset": {
+      "scenery": "valley3d",
+      "palette": "kvrc",
+      "accessory": "cowboy",
+      "sketch": "earcups",
+      "intensity": 0.70
+    }
+  },
+  {
+    "id": "street-sk8",
+    "title": "Street Sk8 Anthem",
+    "artist": "JC_MORAL",
+    "bpm": 88,
+    "type": "synth",
+    "synthIndex": 0,
+    "tags": ["drill"],
+    "loopStart": 0,
+    "loopEnd": 0,
+    "loopEnabled": true,
+    "maxLoops": 0,
+    "likes": 73,
+    "preset": {
+      "scenery": "street",
+      "palette": "scratch",
+      "accessory": "predator",
+      "sketch": "devil",
+      "intensity": 1.05
+    }
+  }
+]

@@ -4095,8 +4095,73 @@ class VoiceWatermarkEngine {
       });
       this.renderPlaylistDrawer();
       this.syncUI();
+      this.saveToServer();
       if (typeof showToast === 'function') {
-        showToast('Beats de fábrica restaurados.');
+        showToast('Beats de fábrica restaurados para todos.');
+      }
+    }
+
+    async loadFromServer() {
+      try {
+        const res = await fetch('/api/catalog');
+        if (res.ok) {
+          const serverCatalog = await res.json();
+          if (Array.isArray(serverCatalog) && serverCatalog.length > 0) {
+            this.tracks = serverCatalog;
+            if (this.currentIndex >= this.tracks.length) this.currentIndex = 0;
+            this.syncUI();
+            this.renderPlaylistDrawer();
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar catálogo do servidor, mantendo local:', err);
+      }
+    }
+
+    async saveToServer() {
+      const token = localStorage.getItem('ldr_producer_token') || sessionStorage.getItem('ldr_producer_token');
+      if (!token) return;
+
+      try {
+        const payload = this.tracks.map((t) => ({
+          id: t.id,
+          title: t.title,
+          artist: t.artist || 'JC_MORAL',
+          bpm: t.bpm || 82,
+          type: t.type || 'audio',
+          synthIndex: typeof t.synthIndex === 'number' ? t.synthIndex : undefined,
+          src: t.src || '/inverno.mp3',
+          tags: t.tags || [],
+          loopStart: t.loopStart || 0,
+          loopEnd: t.loopEnd || 0,
+          loopEnabled: t.loopEnabled !== false,
+          maxLoops: t.maxLoops || 0,
+          likes: t.likes || 0,
+          preset: t.preset || {
+            scenery: 'street',
+            palette: 'hybrid',
+            accessory: 'none',
+            sketch: 'devil',
+            intensity: 0.75
+          }
+        }));
+
+        const res = await fetch('/api/catalog', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          showToast('Alterações salvas globalmente para todos os usuários! 🌐');
+        } else {
+          console.warn('Servidor respondeu com status:', res.status);
+        }
+      } catch (err) {
+        console.warn('Falha na conexão ao salvar catálogo no servidor:', err);
       }
     }
 
@@ -4110,7 +4175,7 @@ class VoiceWatermarkEngine {
 
       this.tracks = this.getDefaultTracks();
 
-      // Filter out tracks deleted by user
+      // Filter out tracks deleted by user locally (offline fallback)
       const removedIds = this.getRemovedTrackIds();
       if (removedIds.length > 0) {
         const remaining = this.tracks.filter((t) => !removedIds.includes(t.id));
@@ -4122,7 +4187,7 @@ class VoiceWatermarkEngine {
         }
       }
 
-      // Load user saved presets + renamed titles / tags / loop configs
+      // Load user saved presets + renamed titles / tags / loop configs (offline fallback)
       this.tracks.forEach((t) => {
         const saved = localStorage.getItem('ldr_track_preset_' + t.id);
         if (saved) {
@@ -4134,6 +4199,7 @@ class VoiceWatermarkEngine {
       });
 
       this.initAudioHooks();
+      this.loadFromServer();
     }
 
     loadMeta(track) {
@@ -4217,6 +4283,18 @@ class VoiceWatermarkEngine {
       const index = this.tracks.findIndex((t) => t.id === this.editingId);
       const draft = this.editDraft;
       if (index < 0 || !draft) return this.cancelEditing();
+
+      // Read latest live values from DOM inputs if available
+      const activeCard = document.querySelector('#playlist-items-container .track-edit');
+      if (activeCard) {
+        const titleInput = activeCard.querySelector('.edit-title');
+        if (titleInput && titleInput.value.trim()) draft.title = titleInput.value.trim();
+        const startInput = activeCard.querySelector('.edit-loop-start');
+        if (startInput) draft.loopStart = parseSec(startInput.value);
+        const endInput = activeCard.querySelector('.edit-loop-end');
+        if (endInput) draft.loopEnd = parseSec(endInput.value);
+      }
+
       const tags = [...draft.tags];
       if (draft.pending) tags.push(draft.pending);
       if (!draft.title.trim()) {
@@ -4241,6 +4319,7 @@ class VoiceWatermarkEngine {
       this.editDraft = null;
       this.renderPlaylistDrawer();
       this.syncUI();
+      this.saveToServer();
       showToast('Beat atualizado.');
     }
 
@@ -4386,6 +4465,12 @@ class VoiceWatermarkEngine {
 
       this.syncUI();
       this.renderPlaylistDrawer();
+
+      fetch('/api/like', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trackId: track.id })
+      }).catch(() => {});
     }
 
     toggleMode() {
@@ -4414,6 +4499,7 @@ class VoiceWatermarkEngine {
       localStorage.setItem('ldr_track_preset_' + track.id, JSON.stringify(track.preset));
       this.renderPlaylistDrawer();
       this.syncUI();
+      this.saveToServer();
     }
 
     removeTrack(index) {
@@ -4458,27 +4544,56 @@ class VoiceWatermarkEngine {
 
       this.renderPlaylistDrawer();
       this.syncUI();
+      this.saveToServer();
       if (typeof showToast === 'function') {
         showToast(`Beat “${trackToRemove.title}” removido.`);
       }
     }
 
-    addFiles(files) {
+    async addFiles(files) {
       if (!files || files.length === 0) return;
       const startIdx = this.tracks.length;
+      const token = localStorage.getItem('ldr_producer_token') || sessionStorage.getItem('ldr_producer_token');
+
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const id = 'user_' + Date.now() + '_' + i;
         const cleanTitle = file.name.replace(/\.[^/.]+$/, "");
+        const id = 'moral_' + Date.now() + '_' + i;
+        let trackSrc = '';
+
+        if (token) {
+          try {
+            showToast(`Enviando "${cleanTitle}" para o armazenamento... ☁️`);
+            const uploadRes = await fetch('/api/upload', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'x-filename': encodeURIComponent(file.name),
+                'Content-Type': file.type || 'audio/mpeg'
+              },
+              body: file
+            });
+            if (uploadRes.ok) {
+              const uploadData = await uploadRes.json();
+              trackSrc = uploadData.src;
+            }
+          } catch (e) {
+            console.warn('Erro ao subir arquivo:', e);
+          }
+        }
+
+        if (!trackSrc) {
+          trackSrc = URL.createObjectURL(file);
+        }
+
         const newTrack = {
           id: id,
           title: cleanTitle,
           artist: 'JC_MORAL',
           bpm: 85,
-          type: 'file',
-          file: file,
-          src: URL.createObjectURL(file),
-          tags: [],
+          type: 'audio',
+          src: trackSrc,
+          tags: ['novo'],
           loopStart: 0,
           loopEnd: 0,
           loopEnabled: true,
@@ -4496,6 +4611,7 @@ class VoiceWatermarkEngine {
       }
       this.renderPlaylistDrawer();
       this.syncUI();
+      await this.saveToServer();
       this.playTrack(startIdx, true);
     }
 
@@ -5136,6 +5252,8 @@ class VoiceWatermarkEngine {
       userRole = 'admin';
       localStorage.setItem('ldr_user_role', 'admin');
       localStorage.setItem('ldr_dev_authenticated', 'true');
+      localStorage.setItem('ldr_producer_token', enteredKey);
+      sessionStorage.setItem('ldr_producer_token', enteredKey);
 
       // Audio & Visual positive reaction
       audio.kickPulse = 1.0;
@@ -5193,6 +5311,8 @@ class VoiceWatermarkEngine {
     userRole = 'visitor';
     localStorage.setItem('ldr_user_role', 'visitor');
     localStorage.removeItem('ldr_dev_authenticated');
+    localStorage.removeItem('ldr_producer_token');
+    sessionStorage.removeItem('ldr_producer_token');
     updateRoleUI();
     showToast('Sessão Dev encerrada. Visão do Ouvinte ativada.');
   }
