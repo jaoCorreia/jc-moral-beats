@@ -8,758 +8,784 @@ const standaloneHtml = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LOVE, DEATH + ROBOTS // 2D+3D Audio-Reactive Robot Art</title>
+  <title>JC_MORAL — Beats</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     :root {
-      --background: #090b10;
-      --card: #0e1117;
-      --foreground: #f3f5f8;
-      --muted-foreground: #8b95a5;
-      --border: #222733;
+      --bg: #0b0b0a;
+      --panel: #111110;
+      --panel-2: #171715;
+      --line: #232321;
+      --line-2: #34332f;
+      --text: #ebe9e3;
+      --muted: #8f8d85;
+      --dim: #5f5d57;
+      --accent: #ff5a1f;
+      --accent-hover: #ff7442;
+      --accent-ink: #0b0b0a;
+      --danger: #e5484d;
+      --sans: "Archivo", ui-sans-serif, system-ui, -apple-system, sans-serif;
+      --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
     }
+
     html, body {
       margin: 0;
       padding: 0;
       width: 100%;
       height: 100%;
-      background-color: #07080c;
-      color: #f3f5f8;
+      background: var(--bg);
+      color: var(--text);
       overflow: hidden;
-      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: var(--sans);
+      font-size: 13px;
+      -webkit-font-smoothing: antialiased;
     }
-    .stage-bg {
-      background: radial-gradient(circle at 50% 42%, #181c24 0%, #0d0f14 58%, #07080b 100%);
+    body { display: flex; flex-direction: column; user-select: none; -webkit-user-select: none; }
+    input, textarea { user-select: text; -webkit-user-select: text; }
+    .hidden { display: none !important; }
+    .mono { font-family: var(--mono); }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    svg { display: block; }
+
+    /* ---------- Type ---------- */
+    .wordmark {
+      margin: 0;
+      font-weight: 850;
+      font-variation-settings: "wdth" 68;
+      font-size: 26px;
+      line-height: 0.9;
+      letter-spacing: 0.005em;
+      text-transform: uppercase;
     }
-    .active-pill {
-      background-color: rgba(255, 107, 43, 0.22) !important;
-      border-color: rgba(255, 107, 43, 0.85) !important;
-      color: #ff9d6e !important;
-      box-shadow: 0 0 12px rgba(255, 107, 43, 0.16);
+    .tagline { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .label {
+      font: 500 10px/1 var(--mono);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--dim);
     }
-    .playing-active {
-      background: linear-gradient(135deg, rgba(255, 107, 43, 0.32), rgba(56, 216, 255, 0.2)) !important;
-      border-color: rgba(255, 107, 43, 0.9) !important;
+    .heading {
+      margin: 0;
+      font-weight: 800;
+      font-variation-settings: "wdth" 72;
+      font-size: 22px;
+      line-height: 1;
+      text-transform: uppercase;
     }
-    .crt-vignette {
-      background: radial-gradient(circle at 50% 50%, transparent 58%, rgba(4, 5, 8, 0.72) 100%);
-    }
-    input[type="range"] {
-      accent-color: #ff6b2b;
-    }
-    /* Custom thin scrollbar for sidebar */
-    .sidebar-scroll::-webkit-scrollbar {
-      width: 5px;
-    }
-    .sidebar-scroll::-webkit-scrollbar-track {
+    .count { font: 500 11px/1 var(--mono); color: var(--dim); }
+
+    /* ---------- Buttons ---------- */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      height: 30px;
+      padding: 0 11px;
+      border: 1px solid var(--line-2);
+      border-radius: 2px;
       background: transparent;
+      color: var(--text);
+      font: 500 12px/1 var(--sans);
+      white-space: nowrap;
+      cursor: pointer;
+      transition: border-color .15s, color .15s, background-color .15s;
     }
-    .sidebar-scroll::-webkit-scrollbar-thumb {
-      background: rgba(139, 149, 165, 0.25);
-      border-radius: 9999px;
+    .btn:hover { border-color: var(--muted); }
+    .btn-ghost { border-color: transparent; color: var(--muted); }
+    .btn-ghost:hover { border-color: transparent; color: var(--text); }
+    .btn-icon { width: 30px; padding: 0; justify-content: center; }
+    .btn-accent { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+    .btn-accent:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .btn-dark { background: rgba(11, 11, 10, .78); border-color: rgba(235, 233, 227, .18); }
+    .btn-block { width: 100%; justify-content: space-between; height: 34px; }
+    .btn.is-active,
+    .active-pill {
+      border-color: var(--accent) !important;
+      color: var(--accent) !important;
+      background: rgba(255, 90, 31, .06) !important;
     }
-    .floating-heart {
-      pointer-events: none;
-      will-change: transform, opacity;
-      z-index: 50;
+    .link {
+      background: none; border: 0; padding: 0; cursor: pointer;
+      color: var(--muted); font: 500 12px var(--sans);
+      text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line-2);
+    }
+    .link:hover { color: var(--text); text-decoration-color: var(--muted); }
+    .link-danger:hover { color: var(--danger); }
+
+    /* ---------- Chips / tags ---------- */
+    .chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      height: 20px; padding: 0 7px;
+      border: 1px solid var(--line-2); border-radius: 2px;
+      font: 500 11px/1 var(--mono); color: var(--muted);
+      background: transparent; white-space: nowrap;
+    }
+    button.chip { cursor: pointer; transition: color .15s, border-color .15s; }
+    button.chip:hover { color: var(--text); border-color: var(--muted); }
+    .chip.is-on { color: var(--accent); border-color: var(--accent); }
+    .chip-x { color: var(--dim); cursor: pointer; font-size: 13px; line-height: 1; }
+    .chip-x:hover { color: var(--danger); }
+
+    /* ---------- Form fields ---------- */
+    .field {
+      width: 100%; height: 34px; padding: 0 10px;
+      background: var(--bg); color: var(--text);
+      border: 1px solid var(--line-2); border-radius: 2px;
+      font: 400 13px var(--sans); outline: none;
+    }
+    .field:focus { border-color: var(--accent); }
+    .field::placeholder { color: var(--dim); }
+    .tag-input {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+      min-height: 34px; padding: 6px;
+      background: var(--bg); border: 1px solid var(--line-2); border-radius: 2px;
+      cursor: text;
+    }
+    .tag-input:focus-within { border-color: var(--accent); }
+    .tag-input input {
+      flex: 1; min-width: 90px; height: 20px;
+      background: transparent; border: 0; outline: 0;
+      color: var(--text); font: 400 12px var(--mono);
+    }
+    .tag-input input::placeholder { color: var(--dim); }
+    input[type="range"] { accent-color: var(--accent); width: 100%; }
+
+    /* ---------- Top bar ---------- */
+    .topbar {
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--line);
+      z-index: 20;
+    }
+    .brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+    .ldr-mark { display: flex; gap: 6px; font: 500 13px/1 var(--mono); color: var(--muted); }
+    .ldr-mark .ldr-glyph-icon { display: inline-block; cursor: pointer; transition: transform 75ms; }
+    .ldr-mark .ldr-glyph-icon:first-child { color: var(--accent); }
+    .topnav { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+    .admin-tools { display: flex; align-items: center; gap: 6px; }
+    .vdivider { width: 1px; height: 18px; background: var(--line-2); margin: 0 8px; }
+    .session {
+      display: flex; align-items: center; gap: 8px;
+      height: 30px; padding: 0 4px 0 10px; margin-left: 4px;
+      border-left: 1px solid var(--line-2);
+      font: 500 12px var(--sans); color: var(--text);
+    }
+    .session-dot { width: 6px; height: 6px; background: var(--accent); }
+
+    /* ---------- Stage ---------- */
+    #stage-wrapper {
+      position: relative; flex: 1; min-height: 0;
+      display: flex; justify-content: center; align-items: stretch;
+      overflow: hidden;
+    }
+    #stage-wrapper:has(.tiktok-vertical-mode) { padding: 16px 0; }
+    #canvas-stage {
+      position: relative; width: 100%; height: 100%; overflow: hidden;
+      transition: box-shadow .2s;
     }
     #canvas-stage.tiktok-vertical-mode {
-      max-width: min(100%, calc((100vh - 175px) * 9 / 16)) !important;
-      aspect-ratio: 9 / 16 !important;
-      margin: 0 auto !important;
-      border-radius: 20px;
-      box-shadow: 0 0 40px rgba(244, 63, 94, 0.35), 0 0 0 2px rgba(244, 63, 94, 0.5);
+      width: auto !important;
+      height: 100%;
+      max-width: 100%;
+      aspect-ratio: 9 / 16;
+      outline: 1px solid var(--line-2);
     }
+    .stage-bg { background: radial-gradient(circle at 50% 42%, #1a1a18 0%, #0f0f0e 60%, #0b0b0a 100%); }
+    .crt-vignette { background: radial-gradient(circle at 50% 50%, transparent 60%, rgba(5, 5, 4, .7) 100%); }
+    .hud {
+      position: absolute; top: 14px; left: 18px; z-index: 10; pointer-events: none;
+      display: flex; flex-direction: column; gap: 4px;
+      font: 400 11px/1.3 var(--mono); color: var(--dim);
+    }
+    #track-name-display { color: var(--muted); }
+
+    /* TikTok guides */
+    .safe-box {
+      position: absolute; left: 20px; right: 20px; top: 56px; bottom: 96px;
+      border: 1px dashed rgba(235, 233, 227, .22);
+      display: flex; justify-content: center; padding-top: 8px; pointer-events: none;
+    }
+    .side-icons {
+      position: absolute; right: 12px; bottom: 96px;
+      display: flex; flex-direction: column; align-items: center; gap: 16px;
+    }
+    .side-icons span { width: 30px; height: 30px; border: 1px solid rgba(235, 233, 227, .35); border-radius: 50%; }
+    .rec-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-ink); }
+    .rec-dot.is-rec { animation: blink 1s steps(2, start) infinite; }
+    @keyframes blink { to { visibility: hidden; } }
+
+    /* ---------- Player bar ---------- */
+    .player {
+      flex-shrink: 0;
+      display: grid;
+      grid-template-columns: auto minmax(160px, 1fr) minmax(220px, 1.3fr) auto;
+      align-items: center; gap: 24px;
+      padding: 10px 18px;
+      border-top: 1px solid var(--line);
+      background: var(--bg);
+      z-index: 20;
+    }
+    .transport { display: flex; align-items: center; gap: 2px; }
+    .play-btn {
+      width: 38px; height: 38px; margin: 0 4px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--accent); color: var(--accent-ink);
+      border: 0; border-radius: 2px; cursor: pointer;
+      transition: background-color .15s;
+    }
+    .play-btn:hover { background: var(--accent-hover); }
+    .now { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+    .now-title {
+      font-weight: 700; font-size: 15px; line-height: 1.1;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .now-meta { display: flex; align-items: center; gap: 8px; min-width: 0; font: 400 11px/1 var(--mono); color: var(--muted); }
+    .now-tags { display: flex; gap: 4px; overflow: hidden; }
+    .scrub { display: flex; align-items: center; gap: 10px; }
+    .time { font: 400 11px/1 var(--mono); color: var(--dim); min-width: 34px; }
+    .time:last-child { text-align: right; }
+    .progress { position: relative; flex: 1; height: 2px; background: var(--line-2); cursor: pointer; }
+    .progress::before { content: ""; position: absolute; left: 0; right: 0; top: -9px; bottom: -9px; }
+    .progress-fill { height: 100%; width: 0; background: var(--text); transition: width .15s linear; }
+    .progress:hover .progress-fill { background: var(--accent); }
+    .player-actions { display: flex; align-items: center; gap: 6px; }
+    #radio-like-icon { color: var(--accent); }
+    @media (max-width: 900px) {
+      .player { grid-template-columns: auto 1fr auto; }
+      .scrub { display: none; }
+    }
+    @media (max-width: 640px) {
+      .tagline, .ldr-mark { display: none; }
+      .admin-tools .btn span.opt-label { display: none; }
+    }
+
+    /* ---------- Drawers ---------- */
+    .drawer {
+      position: fixed; top: 0; bottom: 0; z-index: 40;
+      width: min(400px, 92vw);
+      display: flex; flex-direction: column;
+      background: var(--panel);
+    }
+    .drawer-left { left: 0; border-right: 1px solid var(--line); }
+    .drawer-right { right: 0; border-left: 1px solid var(--line); }
+    .drawer-head {
+      flex-shrink: 0;
+      display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;
+      padding: 20px 18px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .drawer-head p { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
+    .drawer-body { flex: 1; overflow-y: auto; }
+    .drawer-body::-webkit-scrollbar { width: 6px; }
+    .drawer-body::-webkit-scrollbar-thumb { background: var(--line-2); }
+    .backdrop { position: fixed; inset: 0; z-index: 30; background: rgba(0, 0, 0, .55); }
+    .section { padding: 18px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+    .section-head { display: flex; justify-content: space-between; align-items: baseline; }
+    .section p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .section p strong { color: var(--text); font-weight: 600; }
+
+    .opt-list { display: flex; flex-direction: column; gap: 4px; }
+    .opt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+    .opt {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      width: 100%; min-height: 34px; padding: 0 10px;
+      background: transparent; color: var(--text);
+      border: 1px solid var(--line); border-radius: 2px;
+      font: 500 12px/1.2 var(--sans); text-align: left; cursor: pointer;
+      transition: border-color .15s, color .15s;
+    }
+    .opt:hover { border-color: var(--line-2); }
+    .opt small { font: 400 10px/1 var(--mono); color: var(--dim); }
+    .opt.active-pill small { color: inherit; opacity: .7; }
+
+    /* ---------- Playlist ---------- */
+    .tag-filter { display: flex; flex-wrap: wrap; gap: 4px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+    .track {
+      position: relative;
+      display: grid; grid-template-columns: 26px 1fr auto; column-gap: 10px; row-gap: 6px;
+      padding: 13px 18px 13px 16px;
+      border-bottom: 1px solid var(--line);
+      cursor: pointer;
+    }
+    .track:hover { background: var(--panel-2); }
+    .track.is-active::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); }
+    .track-num {
+      position: relative; width: 26px; height: 18px;
+      display: flex; align-items: center;
+      background: none; border: 0; padding: 0; cursor: pointer;
+      font: 500 11px/1 var(--mono); color: var(--dim);
+    }
+    .track-num .n { transition: opacity .1s; }
+    .track-num .ico { position: absolute; left: 0; top: 50%; transform: translateY(-50%); opacity: 0; color: var(--text); }
+    .track:hover .track-num .n { opacity: 0; }
+    .track:hover .track-num .ico { opacity: 1; }
+    .track.is-active .track-num { color: var(--accent); }
+    .track-title {
+      min-width: 0; align-self: center;
+      font-weight: 600; font-size: 14px; line-height: 1.2;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .track.is-active .track-title { color: var(--accent); }
+    .track-like {
+      display: inline-flex; align-items: center; gap: 5px; align-self: center;
+      background: none; border: 0; padding: 0; cursor: pointer;
+      font: 500 11px/1 var(--mono); color: var(--dim);
+    }
+    .track-like:hover { color: var(--accent); }
+    .track-meta { grid-column: 2 / 4; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font: 400 11px/1 var(--mono); color: var(--muted); }
+    .track-meta .sep { color: var(--line-2); margin: 0 2px; }
+    .track-preset { grid-column: 2 / 4; font: 400 10px/1.3 var(--mono); color: var(--dim); }
+    .track-actions { grid-column: 2 / 4; display: flex; gap: 14px; }
+    .track-edit { grid-column: 1 / 4; display: flex; flex-direction: column; gap: 8px; padding: 2px 0 2px 36px; cursor: default; }
+    .track-edit .row-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 4px; }
+    .loop-box {
+      display: flex; flex-direction: column; gap: 6px; padding: 8px 10px;
+      border: 1px dashed var(--line-2); border-radius: 2px; background: rgba(0,0,0,.25);
+    }
+    .loop-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .time-field { display: flex; align-items: center; gap: 4px; }
+    .time-field input { font-family: var(--mono); font-size: 11px; padding: 0 6px; height: 26px; }
+    .loop-tag { font: 500 10px/1 var(--mono); color: var(--accent); border: 1px solid rgba(255, 90, 31, .35); padding: 1px 4px; border-radius: 2px; }
+    .suggest { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+    .empty { padding: 28px 18px; color: var(--dim); font: 400 12px var(--mono); }
+
+    .eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 10px; }
+    .eq i { width: 2px; background: var(--accent); animation: eq .9s ease-in-out infinite; }
+    .eq i:nth-child(2) { animation-delay: -.3s; }
+    .eq i:nth-child(3) { animation-delay: -.6s; }
+    @keyframes eq { 0%, 100% { height: 3px; } 50% { height: 10px; } }
+
+    /* ---------- Modal ---------- */
+    .modal { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0, 0, 0, .75); }
+    .modal-card { width: 100%; max-width: 400px; background: var(--panel); border: 1px solid var(--line-2); }
+    .modal-card form { display: flex; flex-direction: column; gap: 10px; padding: 18px; }
+    .form-error { padding: 8px 10px; border: 1px solid rgba(229, 72, 77, .4); color: var(--danger); font: 500 11px var(--mono); }
+    .hint { margin: 0; color: var(--dim); font: 400 11px/1.5 var(--mono); }
+    .hint code { color: var(--muted); }
+
+    /* ---------- Bio ---------- */
+    .bio-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+    .bio-list li { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 12px; }
+    .bio-list li:last-child { border-bottom: 0; }
+    .bio-list li span:first-child { color: var(--muted); }
+    .bio-link { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); color: var(--text); text-decoration: none; font-size: 13px; }
+    .bio-link:hover { color: var(--accent); }
+    .bio-link span:last-child { font: 400 11px var(--mono); color: var(--dim); }
+
+    /* ---------- Misc ---------- */
+    .toast {
+      position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 60;
+      padding: 10px 14px; background: var(--text); color: var(--bg);
+      font: 500 12px var(--sans); border-radius: 2px;
+      transition: opacity .3s;
+    }
+    .floating-heart { pointer-events: none; will-change: transform, opacity; z-index: 50; }
   </style>
 </head>
-<body class="w-screen h-screen flex flex-col bg-[#07080c] text-zinc-100 antialiased select-none p-3 box-border">
-  <div class="relative w-full h-full bg-[#0e1117] border border-zinc-800/90 rounded-2xl p-4 shadow-2xl flex flex-col gap-3 overflow-hidden">
-    
-    <!-- TOP BAR (Clean Header + Quick Play + Hamburger Menu Button) -->
-    <div class="flex flex-wrap items-center justify-between gap-3 shrink-0 z-20">
-      <div class="flex items-center gap-3">
-        <div class="flex items-center gap-2 px-2.5 py-1 rounded-md bg-zinc-900 border border-zinc-700/80 text-orange-500 font-mono text-sm tracking-wider">
-          <span class="ldr-glyph-icon inline-block transition-transform duration-75 cursor-pointer" title="Love">♥</span>
-          <span class="ldr-glyph-icon inline-block text-zinc-200 transition-transform duration-75 cursor-pointer" title="Death">✕</span>
-          <span class="ldr-glyph-icon inline-block text-cyan-400 transition-transform duration-75 cursor-pointer" title="Robots">■</span>
-        </div>
-        <div>
-          <h1 class="text-zinc-100 font-bold text-base leading-tight tracking-tight flex items-center gap-2">
-            <span>JC_MORAL</span>
-            <span class="text-[9px] font-mono font-semibold px-2 py-0.5 rounded-full bg-orange-950/70 text-orange-300 border border-orange-500/40 tracking-wider">PRODUCER PORTFOLIO</span>
-            <span class="hidden md:inline-flex items-center gap-1 text-[9px] font-mono font-semibold px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-500/50 tracking-wider" title="Música 100% autoral criada à mão nota por nota, sem inteligência artificial">
-              <span>🎹</span> 100% AUTORAL • FEITO À MÃO (SEM IA)
-            </span>
-          </h1>
-          <p class="text-zinc-400 text-xs leading-tight">
-            Beats autorais criados à mão, nota por nota (sem IA) • Densidade Moral & Reatividade 3D
-          </p>
-        </div>
+<body>
+
+  <!-- ======================================================================
+       TOP BAR
+       ====================================================================== -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="ldr-mark" aria-hidden="true">
+        <span class="ldr-glyph-icon" title="Love">&#9829;</span>
+        <span class="ldr-glyph-icon" title="Death">&#10005;</span>
+        <span class="ldr-glyph-icon" title="Robots">&#9632;</span>
       </div>
-
-      <!-- Header Controls: Clean Visitor Portfolio vs Full Producer Suite -->
-      <div class="flex items-center gap-2">
-        <!-- 1. BEATS / PLAYLIST (Always visible in portfolio) -->
-        <button id="btn-toggle-playlist" class="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-orange-500/60 bg-zinc-900/95 text-orange-300 text-xs font-semibold tracking-wide transition cursor-pointer hover:border-orange-400 hover:bg-orange-950/50 hover:text-white" title="Ouvir e curtir beats do portfólio">
-          <span>📻</span>
-          <span>Beats</span>
-          <span id="top-playlist-badge" class="px-1.5 py-0.2 rounded-full bg-orange-500 text-black text-[10px] font-mono font-bold">4</span>
-        </button>
-
-        <!-- 2. BIO & CONTATO (Portfolio information) -->
-        <button id="btn-toggle-bio" class="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-900/95 text-zinc-200 hover:border-zinc-500 hover:text-white text-xs font-medium tracking-wide transition cursor-pointer" title="Sobre JC_MORAL, conceito e contato">
-          <span>👤</span>
-          <span class="hidden sm:inline">Bio & Contato</span>
-        </button>
-
-        <!-- 3. PRODUCER ACCESS: DISCREET LOCK IN VISITOR MODE -->
-        <button id="btn-dev-login-trigger" class="visitor-only flex items-center gap-1 px-2.5 py-2 rounded-lg border border-zinc-800 bg-zinc-900/80 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 text-xs font-mono transition cursor-pointer" title="Área Restrita (JC_MORAL) - Acesso via Chave Mestra">
-          <span>🔒</span>
-        </button>
-
-        <!-- 4. LOGGED IN BADGE (Admin only) -->
-        <div id="dev-logged-badge" class="admin-only hidden flex items-center gap-1.5 pl-2.5 pr-1.5 py-1.5 rounded-lg border border-amber-500/70 bg-amber-950/40 text-amber-300 text-xs font-mono shadow-md shadow-amber-950/30">
-          <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-          <span class="font-bold">JC_MORAL</span>
-          <span class="text-[9px] px-1 py-0.2 rounded bg-amber-900/80 border border-amber-600/60 text-amber-200 font-bold">DEV</span>
-          <button id="btn-dev-logout" class="ml-1 px-1.5 py-0.5 rounded bg-zinc-900/80 hover:bg-red-950/80 text-zinc-400 hover:text-red-300 border border-zinc-700/60 hover:border-red-700/60 text-[10px] transition cursor-pointer" title="Encerrar Sessão Dev">Sair</button>
-        </div>
-
-        <!-- 5. TIKTOK STUDIO & CLIP RECORDER BUTTON (Admin only) -->
-        <button id="btn-tiktok-mode" class="admin-only hidden flex items-center gap-1.5 px-3 py-2 rounded-lg border border-pink-500/50 bg-zinc-900/95 text-pink-300 text-xs font-semibold tracking-wide transition cursor-pointer hover:border-pink-400 hover:bg-pink-950/50 hover:text-white" title="Gravar vídeos e clipes no formato Vertical 9:16 para TikTok">
-          <span>📱</span>
-          <span id="tiktok-mode-label">TikTok 9:16</span>
-        </button>
-
-        <!-- 6. CAPTURAR SPOTIFY / FONES (Admin only) -->
-        <button id="btn-system-audio-top" class="admin-only hidden btn-system-audio-trigger flex items-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-500/60 bg-emerald-950/40 text-emerald-300 text-xs font-semibold tracking-wide transition cursor-pointer hover:border-emerald-400 hover:bg-emerald-900/60 hover:text-white" title="Capturar áudio do Spotify / YouTube / Fones via aba ou sistema">
-          <span>🎧</span>
-          <span class="system-audio-btn-label hidden md:inline">Capturar Fones / Spotify</span>
-        </button>
-
-        <!-- 7. PICTURE-IN-PICTURE (Admin only) -->
-        <button id="btn-pip-top" class="admin-only hidden btn-pip-trigger flex items-center gap-1.5 px-3 py-2 rounded-lg border border-cyan-500/50 bg-zinc-900/95 text-cyan-200 text-xs font-semibold tracking-wide transition cursor-pointer hover:border-cyan-400 hover:text-white" title="Modo Mini: Fixa janela flutuante no macOS">
-          <span>📌</span>
-          <span class="pip-btn-label">Mini PiP</span>
-        </button>
-
-        <!-- 8. ESTÚDIO / CENÁRIOS / SKINS (Admin only) -->
-        <button id="btn-toggle-sidebar" class="admin-only hidden flex items-center gap-2 px-3.5 py-2 rounded-lg border border-zinc-700 bg-zinc-900/95 text-zinc-100 text-xs font-semibold tracking-wide transition cursor-pointer hover:border-orange-500/70 hover:text-orange-300" title="Abrir menu de personalização avançada e cenários (Produtor)">
-          <svg class="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-          <span>Estúdio</span>
-        </button>
+      <div>
+        <h1 class="wordmark">JC_MORAL</h1>
+        <p class="tagline">Beats feitos à mão, nota por nota. Sem IA.</p>
       </div>
     </div>
 
-    <!-- STAGE WRAPPER (Centers 9:16 vertical mode or fills widescreen) -->
-    <div id="stage-wrapper" class="relative w-full flex-1 min-h-[340px] flex items-center justify-center overflow-hidden">
-      <!-- MAIN 2D + 3D STAGE -->
-      <div id="canvas-stage" class="relative w-full h-full rounded-xl overflow-hidden stage-bg border border-zinc-800/90 transition-all duration-300 ease-out">
-        <canvas id="ascii-bg-canvas" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
-        <canvas id="webgl-canvas" class="absolute inset-0 w-full h-full"></canvas>
-        <canvas id="sketch-fg-canvas" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
-        <div class="absolute inset-0 crt-vignette pointer-events-none"></div>
+    <nav class="topnav">
+      <!-- Producer tools -->
+      <div class="admin-only hidden admin-tools">
+        <button id="btn-watermark-top" class="btn" title="Marca d'água de voz (ElevenLabs) periódica com voz distorcida">
+          <span id="watermark-top-label">Tag: Off</span>
+        </button>
+        <button id="btn-tiktok-mode" class="btn" title="Formato vertical 9:16 para TikTok / Reels">
+          <span id="tiktok-mode-label">Vertical 9:16</span>
+        </button>
+        <button id="btn-system-audio-top" class="btn btn-system-audio-trigger" title="Capturar áudio de uma aba (Spotify, YouTube) ou do sistema">
+          <span class="system-audio-btn-label">Capturar áudio</span>
+        </button>
+        <button id="btn-pip-top" class="btn btn-pip-trigger" title="Janela flutuante sobre outros apps">
+          <span class="pip-btn-label">PiP</span>
+        </button>
+        <button id="btn-toggle-sidebar" class="btn" title="Cenário, robô, camadas e áudio">Estúdio</button>
+        <span class="vdivider"></span>
+      </div>
 
-        <!-- Top-Left Telemetry HUD Overlay -->
-        <div class="absolute top-3.5 left-4 pointer-events-none flex flex-col gap-1 font-mono text-xs text-zinc-400/85 z-10">
-          <div class="flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-cyan-400/90"></span>
-            <span id="track-name-display" class="text-zinc-200 font-semibold">JC_MORAL // INVERNO.MP3</span>
-          </div>
-          <span id="track-preset-badge" class="text-zinc-500">PRESET: 🛹 STREET // HÍBRIDO // ⚡ CAPETA</span>
-        </div>
+      <button id="btn-toggle-playlist" class="btn btn-ghost" title="Lista de beats">
+        Beats <span id="top-playlist-badge" class="count">4</span>
+      </button>
+      <button id="btn-toggle-bio" class="btn btn-ghost">Sobre</button>
 
-        <!-- TIKTOK 9:16 GUIDES OVERLAY (Hidden by default, shown in TikTok mode) -->
-        <div id="tiktok-guide-overlay" class="absolute inset-0 pointer-events-none z-20 hidden flex flex-col justify-between p-4 text-white font-sans select-none">
-          <div class="flex items-center justify-between pointer-events-auto">
-            <div class="flex items-center gap-3 text-xs font-bold drop-shadow">
-              <span class="opacity-60 text-[11px]">LIVE</span>
-              <span class="opacity-70">Seguindo</span>
-              <span class="border-b-2 border-white pb-0.5 font-extrabold">Para Você</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <button id="btn-record-tiktok" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-pink-600 hover:bg-pink-500 text-white font-bold text-xs shadow-lg shadow-pink-900/60 transition cursor-pointer active:scale-95" title="Gravar vídeo vertical 9:16 com áudio e baixar automaticamente para o TikTok">
-                <span id="tiktok-rec-dot" class="w-2.5 h-2.5 rounded-full bg-white"></span>
-                <span id="tiktok-rec-label">Gravar Drop (15s)</span>
-              </button>
-              <button id="btn-record-tiktok-30" class="px-2 py-1.5 rounded-lg bg-zinc-900/90 hover:bg-zinc-800 text-white text-[11px] font-mono border border-zinc-700 transition cursor-pointer" title="Gravar 30 segundos">
-                30s
-              </button>
-              <button id="btn-toggle-tiktok-guides" class="px-2 py-1.5 rounded-md bg-black/70 backdrop-blur text-[10px] font-mono border border-white/20 text-white/90 hover:bg-black/90 cursor-pointer" title="Mostrar ou ocultar linhas e botões do TikTok">
-                👁️ Guias
-              </button>
-            </div>
-          </div>
+      <button id="btn-dev-login-trigger" class="visitor-only btn btn-ghost btn-icon" title="Área do produtor">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="1"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      </button>
 
-          <!-- Safe Zone Box -->
-          <div id="tiktok-safe-box" class="absolute inset-x-5 top-14 bottom-24 border border-dashed border-pink-400/40 rounded-2xl pointer-events-none flex items-start justify-center pt-2">
-            <span class="text-[9px] font-mono uppercase tracking-widest text-pink-300/60 bg-black/50 px-2 py-0.5 rounded-full border border-pink-500/20">
-              Área Segura do TikTok
-            </span>
-          </div>
+      <div id="dev-logged-badge" class="admin-only hidden session">
+        <span class="session-dot"></span>
+        <span>Produtor</span>
+        <button id="btn-dev-logout" class="link" title="Encerrar sessão">Sair</button>
+      </div>
+    </nav>
+  </header>
 
-          <!-- Right Action Icons Mockup -->
-          <div id="tiktok-side-icons" class="absolute right-2.5 bottom-20 flex flex-col items-center gap-3.5 text-xs font-bold drop-shadow">
-            <div class="relative w-8 h-8 rounded-full bg-gradient-to-tr from-pink-500 to-cyan-400 p-0.5 flex items-center justify-center">
-              <span class="text-xs">🤖</span>
-              <span class="absolute -bottom-1 w-3.5 h-3.5 rounded-full bg-red-500 text-white text-[9px] flex items-center justify-center font-bold">+</span>
-            </div>
-            <div class="flex flex-col items-center">
-              <span class="text-lg">♥</span>
-              <span class="text-[9px] font-semibold">124k</span>
-            </div>
-            <div class="flex flex-col items-center">
-              <span class="text-lg">💬</span>
-              <span class="text-[9px] font-semibold">2.4k</span>
-            </div>
-            <div class="flex flex-col items-center">
-              <span class="text-lg">★</span>
-              <span class="text-[9px] font-semibold">18k</span>
-            </div>
-            <div class="flex flex-col items-center">
-              <span class="text-lg">➥</span>
-              <span class="text-[9px] font-semibold">Share</span>
-            </div>
-            <div class="w-7 h-7 rounded-full bg-zinc-900 border border-zinc-600 flex items-center justify-center animate-spin">
-              <span class="text-[10px]">💿</span>
-            </div>
-          </div>
+  <!-- ======================================================================
+       STAGE
+       ====================================================================== -->
+  <main id="stage-wrapper">
+    <div id="canvas-stage" class="stage-bg">
+      <canvas id="ascii-bg-canvas" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
+      <canvas id="webgl-canvas" class="absolute inset-0 w-full h-full"></canvas>
+      <canvas id="sketch-fg-canvas" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
+      <div class="absolute inset-0 crt-vignette pointer-events-none"></div>
 
-          <!-- Bottom Captions Mockup -->
-          <div id="tiktok-bottom-caption" class="flex flex-col gap-1 max-w-[72%] drop-shadow text-left">
-            <span class="text-xs font-bold text-white flex items-center gap-1">@jc_moral.producer <span class="text-[10px] text-cyan-400">✓</span></span>
-            <p class="text-[10px] text-zinc-100 line-clamp-2 leading-tight">
-              Momento mais quente do beat no skatepark! 🔥🛹 #JCMORAL #Beats #LoveDeathRobots #Drill
-            </p>
-            <div class="flex items-center gap-1.5 text-[9px] text-zinc-300 font-mono">
-              <span>🎵</span>
-              <span class="truncate">Som original - JC_MORAL</span>
-            </div>
-          </div>
-        </div>
+      <div class="hud">
+        <span id="track-name-display">JC_MORAL // INVERNO.MP3</span>
+        <span id="track-preset-badge">PRESET: STREET // HYBRID // DEVIL</span>
+      </div>
 
-      <!-- SLIDE-OVER SIDEBAR DRAWER (All Customization Options Inside) -->
-      <aside id="custom-sidebar" class="absolute top-0 right-0 bottom-0 w-80 sm:w-88 max-w-[90vw] bg-[#0b0e14]/95 backdrop-blur-md border-l border-zinc-800/95 shadow-2xl z-30 flex flex-col transition-transform duration-300 ease-out translate-x-full">
-        
-        <!-- Sidebar Header -->
-        <div class="flex items-center justify-between px-4 py-3.5 border-b border-zinc-800/90 shrink-0">
-          <div class="flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-orange-500"></span>
-            <h2 class="text-xs font-mono uppercase tracking-wider text-zinc-100 font-semibold">
-              Personalização & Cenário
-            </h2>
-          </div>
-          <button id="btn-close-sidebar" class="p-1.5 rounded-md text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80 transition cursor-pointer" title="Fechar menu (Esc)">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <!-- Sidebar Scrollable Content -->
-        <div class="flex-1 overflow-y-auto sidebar-scroll p-4 flex flex-col gap-5">
-          
-          <!-- SECTION 1: CENÁRIO / ANIMAÇÃO DE FUNDO ASCII -->
-          <div class="flex flex-col gap-2">
-            <div class="flex items-center justify-between">
-              <span class="text-[11px] font-mono uppercase tracking-wider text-zinc-400 font-semibold">
-                1. Cenário / Animação ASCII
-              </span>
-              <span class="text-[10px] font-mono text-orange-400/90">2D / 3D</span>
-            </div>
-            <div class="grid grid-cols-1 gap-1.5">
-              <button data-scenery-btn="classic" class="flex items-center justify-between px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-left">
-                <span>🏔️ Clássico (Onda Diagonal & Montanha)</span>
-                <span class="text-[10px] font-mono opacity-75">Original</span>
-              </button>
-              <button data-scenery-btn="street" class="active-pill flex items-center justify-between px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-left">
-                <span>🛹 Street (Paredes Pichadas & Skatepark)</span>
-                <span class="text-[10px] font-mono text-pink-400">Novo</span>
-              </button>
-              <button data-scenery-btn="cybercode" class="flex items-center justify-between px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-left">
-                <span>💻 Fluxo Cripto Cyber (Base64)</span>
-                <span class="text-[10px] font-mono text-cyan-400">Novo</span>
-              </button>
-              <button data-scenery-btn="valley3d" class="flex items-center justify-between px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-left">
-                <span>🪐 Vale 3D & Planeta Orbital</span>
-                <span class="text-[10px] font-mono opacity-75">3D Completo</span>
-              </button>
-              <button data-scenery-btn="horizon2d" class="flex items-center justify-between px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-left">
-                <span>⛰️ Cordilheira 2D (Horizonte)</span>
-                <span class="text-[10px] font-mono opacity-75">2D Base</span>
-              </button>
-              <button data-scenery-btn="cybergrid" class="flex items-center justify-between px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-left">
-                <span>🌐 Horizonte Cyber 3D</span>
-                <span class="text-[10px] font-mono opacity-75">Monólitos EQ</span>
-              </button>
-              <button data-scenery-btn="warp3d" class="flex items-center justify-between px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-left">
-                <span>✨ Túnel Warp 3D</span>
-                <span class="text-[10px] font-mono opacity-75">Voo Espacial</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- SECTION 2: ACESSÓRIOS DE CABEÇA (3D) -->
-          <div class="flex flex-col gap-2 pt-3 border-t border-zinc-800/80">
-            <div class="flex items-center justify-between">
-              <span class="text-[11px] font-mono uppercase tracking-wider text-zinc-400 font-semibold">
-                2. Acessórios de Cabeça
-              </span>
-              <span class="text-[10px] font-mono text-cyan-400/90">Malha 3D</span>
-            </div>
-            <div class="grid grid-cols-2 gap-1.5">
-              <button data-accessory-btn="none" class="px-2.5 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-left">
-                🚫 Nenhum
-              </button>
-              <button data-accessory-btn="cap" class="active-pill px-2.5 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-left">
-                🧢 Boné Cyber
-              </button>
-              <button data-accessory-btn="cowboy" class="px-2.5 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-left">
-                🤠 Cowboy
-              </button>
-              <button data-accessory-btn="predator" class="px-2.5 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-left">
-                👾 Predador
-              </button>
-            </div>
-          </div>
-
-          <!-- SECTION 3: PALETA / ESTILO DO ROBÔ -->
-          <div class="flex flex-col gap-2 pt-3 border-t border-zinc-800/80">
-            <div class="flex items-center justify-between">
-              <span class="text-[11px] font-mono uppercase tracking-wider text-zinc-400 font-semibold">
-                3. Paleta / Estilo do Robô
-              </span>
-              <span class="text-[10px] font-mono text-zinc-500">PBR + Luzes</span>
-            </div>
-            <div class="grid grid-cols-2 gap-1.5">
-              <button data-palette-btn="hybrid" class="active-pill px-2.5 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-left">
-                Híbrido LDR
-              </button>
-              <button data-palette-btn="cytro" class="px-2.5 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-left">
-                Mecha Green
-              </button>
-              <button data-palette-btn="xbot" class="px-2.5 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-left">
-                XBOT 4000
-              </button>
-              <button data-palette-btn="kvrc" class="px-2.5 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-left">
-                K-VRC
-              </button>
-              <button data-palette-btn="scratch" class="col-span-2 px-2.5 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-left">
-                Scratch P&B (Traço Brutalista)
-              </button>
-            </div>
-          </div>
-
-          <!-- SECTION 4: ANIMAÇÃO 2D SKETCH & CAMADAS -->
-          <div class="flex flex-col gap-2 pt-3 border-t border-zinc-800/80">
-            <div class="flex items-center justify-between">
-              <span class="text-[11px] font-mono uppercase tracking-wider text-zinc-400 font-semibold">
-                4. Animação 2D / Rabiscos
-              </span>
-              <span class="text-[10px] font-mono text-orange-400/90">Sketch FX</span>
-            </div>
-            <div class="grid grid-cols-1 gap-1.5">
-              <button data-sketch-btn="devil" class="active-pill flex items-center justify-between px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-left">
-                <span>⚡ Rabiscos de Capeta (Corpo Inteiro)</span>
-                <span class="text-[10px] font-mono opacity-75">Caótico</span>
-              </button>
-              <button data-sketch-btn="earcups" class="flex items-center justify-between px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-left">
-                <span>🎧 Ondas Clássicas (Só nos Fones)</span>
-                <span class="text-[10px] font-mono opacity-75">Original</span>
-              </button>
-              <button data-sketch-btn="waves" class="flex items-center justify-between px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-left">
-                <span>🌊 Ondas de Áudio (Fluido no Corpo)</span>
-                <span class="text-[10px] font-mono opacity-75">Suave</span>
-              </button>
-            </div>
-            <div class="grid grid-cols-2 gap-1.5 mt-1">
-              <button id="btn-toggle-sketch" class="active-pill px-2.5 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-center" title="Ligar/Desligar camada 2D Sketch">
-                ⚡ Camada 2D ON
-              </button>
-              <button id="btn-toggle-ascii" class="active-pill px-2.5 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-center" title="Ligar/Desligar fundo ASCII">
-                ⛰️ Fundo ASCII ON
-              </button>
-            </div>
-          </div>
-
-          <!-- SECTION 5: FONTE DE ÁUDIO & REATIVIDADE -->
-          <div class="flex flex-col gap-2.5 pt-3 border-t border-zinc-800/80">
-            <span class="text-[11px] font-mono uppercase tracking-wider text-zinc-400 font-semibold">
-              5. Áudio & Reatividade Musical
-            </span>
-
-            <!-- Botão Capturar Spotify / Fones -->
-            <button id="btn-system-audio-sidebar" class="btn-system-audio-trigger w-full flex items-center justify-between px-3 py-2.5 rounded-lg border border-emerald-500/70 bg-emerald-950/40 text-emerald-300 text-xs font-semibold transition cursor-pointer hover:border-emerald-400 hover:bg-emerald-900/50 shadow-lg">
-              <span class="flex items-center gap-2">
-                <span class="text-base">🎧</span>
-                <span class="system-audio-btn-label">Capturar Spotify / Fones</span>
-              </span>
-              <span class="text-[10px] font-mono text-emerald-400 px-1.5 py-0.5 rounded bg-emerald-900/60 border border-emerald-700/60">LIVE</span>
+      <!-- TikTok 9:16 guides -->
+      <div id="tiktok-guide-overlay" class="absolute inset-0 z-20 hidden pointer-events-none">
+        <div class="absolute top-0 left-0 right-0 flex items-center justify-between gap-2 p-3 pointer-events-auto">
+          <span class="label" style="color: rgba(235,233,227,.55)">Seguindo · Para você</span>
+          <div class="flex items-center gap-1.5">
+            <button id="btn-record-tiktok" class="btn btn-accent" title="Gravar 15s em 9:16 com áudio e baixar">
+              <span id="tiktok-rec-dot" class="rec-dot"></span>
+              <span id="tiktok-rec-label">Gravar 15s</span>
             </button>
-            <p class="text-[10px] text-zinc-400 leading-relaxed -mt-1">
-              Sincronize com o <strong class="text-zinc-200">Spotify</strong>, YouTube ou seus fones. Ao clicar, escolha a aba do Spotify/YouTube (ou tela) e marque <strong class="text-emerald-400">"Compartilhar áudio"</strong>.
-            </p>
-
-            <div class="flex flex-col gap-1.5 bg-zinc-900/70 p-2.5 rounded-lg border border-zinc-800/80">
-              <div class="flex items-center justify-between text-xs">
-                <label for="reactivity-slider" class="text-zinc-300 font-medium">
-                  Intensidade da Reação
-                </label>
-                <span id="reactivity-val" class="font-mono text-orange-400 text-[11px]">75%</span>
-              </div>
-              <input id="reactivity-slider" type="range" min="0.2" max="1.4" step="0.05" value="0.75" class="w-full cursor-pointer" />
-            </div>
-
-            <div class="grid grid-cols-2 gap-1.5">
-              <button id="btn-play-inverno" class="px-2.5 py-2 rounded-lg border border-cyan-500/40 bg-zinc-900/90 text-cyan-300 text-xs font-medium transition cursor-pointer hover:border-cyan-400 text-center">
-                ↺ inverno.mp3
-              </button>
-              <button id="btn-Switch-track" class="px-2.5 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-center">
-                🎹 Synth Lo-Fi ↻
-              </button>
-              <label class="px-2.5 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-center">
-                📂 Abrir MP3
-                <input id="audio-file-input" type="file" accept="audio/*" class="hidden" />
-              </label>
-              <button id="btn-mic" class="px-2.5 py-2 rounded-lg border border-zinc-800 bg-zinc-900/90 text-zinc-200 text-xs font-medium transition cursor-pointer hover:border-zinc-600 text-center">
-                🎙️ Usar Mic
-              </button>
-            </div>
-          </div>
-
-          <!-- SECTION 6: MODO MINI FLUTUANTE (SOBREPOR OUTROS APPS) -->
-          <div class="flex flex-col gap-2 pt-3 border-t border-zinc-800/80">
-            <span class="text-[11px] font-mono uppercase tracking-wider text-zinc-400 font-semibold">
-              6. Janela Flutuante (Mini)
-            </span>
-            <button id="btn-pip-sidebar" class="btn-pip-trigger flex items-center justify-between px-3 py-2.5 rounded-lg border border-cyan-500/60 bg-cyan-950/30 text-cyan-200 text-xs font-medium transition cursor-pointer hover:border-cyan-400 hover:bg-cyan-950/50">
-              <span class="flex items-center gap-2">
-                <span>📌</span>
-                <span class="pip-btn-label">Sobrepor aos Outros Apps (PiP)</span>
-              </span>
-              <span class="text-[10px] font-mono text-cyan-400">Ativar</span>
-            </button>
-            <p class="text-[11px] text-zinc-400 leading-relaxed">
-              Fixa uma mini janela no macOS que fica por cima de qualquer aplicativo (VS Code, Finder, Spotify, etc.) enquanto você trabalha.
-            </p>
+            <button id="btn-record-tiktok-30" class="btn btn-dark" title="Gravar 30 segundos">30s</button>
+            <button id="btn-toggle-tiktok-guides" class="btn btn-dark" title="Mostrar ou ocultar guias">Guias</button>
           </div>
         </div>
-      </aside>
-    </div>
-  </div>
 
-  <!-- BOTTOM RADIO & BEAT PLAYER BAR -->
-  <div id="radio-player-bar" class="w-full shrink-0 flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-[#0b0e14]/95 backdrop-blur-md border border-zinc-800/90 shadow-xl z-20">
-    <!-- Controls + Track info -->
-    <div class="flex items-center gap-3">
-      <div class="flex items-center gap-1">
-        <button id="radio-btn-prev" class="p-2 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white transition cursor-pointer" title="Faixa Anterior">
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
-        </button>
-        <button id="radio-btn-play" class="px-3.5 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-semibold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-md shadow-orange-600/30">
-          <span id="radio-play-icon" class="text-xs">▶</span>
-          <span id="radio-play-label">TOCAR</span>
-        </button>
-        <button id="radio-btn-next" class="p-2 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white transition cursor-pointer" title="Próxima Faixa">
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
-        </button>
-      </div>
-
-      <!-- Active Track Metadata -->
-      <div class="flex flex-col min-w-[130px] max-w-[240px]">
-        <div class="flex items-center gap-1.5">
-          <span class="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
-          <span id="radio-track-title" class="text-xs font-semibold text-zinc-100 truncate">Inverno // Lofi Chill</span>
+        <div id="tiktok-safe-box" class="safe-box">
+          <span class="label" style="color: rgba(235,233,227,.4)">Área segura</span>
         </div>
-        <div class="flex items-center gap-1.5">
-          <span id="radio-track-artist" class="text-[10px] font-mono text-zinc-400 truncate">JC_MORAL // 82 BPM</span>
-          <span class="hidden sm:inline-flex items-center gap-1 text-[9px] font-mono font-semibold px-1.5 py-0.2 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/50" title="Beats autorais feitos à mão, sem inteligência artificial">
-            <span>🎹</span> SEM IA
-          </span>
+
+        <div id="tiktok-side-icons" class="side-icons">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+
+        <div id="tiktok-bottom-caption" class="absolute left-4 bottom-4 flex flex-col gap-1 max-w-[70%]" style="text-shadow: 0 1px 4px rgba(0,0,0,.6)">
+          <span style="font-weight:700; font-size:12px">@jc_moral.producer</span>
+          <span style="font-size:11px; color: rgba(235,233,227,.8)">Legenda do vídeo #JCMORAL #beats</span>
+          <span class="mono" style="font-size:10px; color: rgba(235,233,227,.6)">Som original — JC_MORAL</span>
         </div>
       </div>
     </div>
+  </main>
 
-    <!-- Scrubber / Progress Bar -->
-    <div class="hidden md:flex items-center gap-2 flex-1 max-w-sm mx-2">
-      <span id="radio-time-current" class="text-[10px] font-mono text-zinc-400">0:00</span>
-      <div id="radio-progress-bar-bg" class="flex-1 h-1.5 bg-zinc-800/90 rounded-full overflow-hidden cursor-pointer hover:h-2 transition-all">
-        <div id="radio-progress-bar-fill" class="h-full bg-orange-500 rounded-full w-0 transition-[width] duration-150"></div>
+  <!-- ======================================================================
+       PLAYER BAR
+       ====================================================================== -->
+  <footer id="radio-player-bar" class="player">
+    <div class="transport">
+      <button id="radio-btn-prev" class="btn btn-ghost btn-icon" title="Anterior">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg>
+      </button>
+      <button id="radio-btn-play" class="play-btn" title="Tocar / pausar">
+        <span id="radio-play-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg></span>
+        <span id="radio-play-label" class="sr-only">Tocar</span>
+      </button>
+      <button id="radio-btn-next" class="btn btn-ghost btn-icon" title="Próxima">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg>
+      </button>
+    </div>
+
+    <div class="now">
+      <div id="radio-track-title" class="now-title">Inverno // Lofi Chill</div>
+      <div class="now-meta">
+        <span id="radio-track-artist" class="shrink-0">JC_MORAL · 82 BPM</span>
+        <span id="radio-track-tags" class="now-tags"></span>
       </div>
-      <span id="radio-time-total" class="text-[10px] font-mono text-zinc-400">--:--</span>
     </div>
 
-    <!-- Radio Actions: Preset/Auto Toggle + Like Button + Playlist Trigger -->
-    <div class="flex items-center gap-2">
-      <!-- Mode Toggle Button (Admin only) -->
-      <button id="radio-mode-toggle" class="admin-only flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700/80 bg-zinc-900 text-xs text-zinc-200 hover:border-orange-500/70 transition cursor-pointer" title="Alternar entre Presets Fixos por Música ou Modo Automático (Random DJ)">
-        <span id="radio-mode-icon">🎛️</span>
-        <span id="radio-mode-label" class="text-[11px] font-mono font-medium">Preset da Faixa</span>
-      </button>
-
-      <!-- Like Button with Counter & Hearts Effect -->
-      <button id="radio-btn-like" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-pink-500/60 bg-pink-950/40 text-pink-300 hover:bg-pink-900/60 hover:border-pink-400 text-xs font-semibold transition cursor-pointer active:scale-95 shadow-md shadow-pink-950/30" title="Curtir este beat (adiciona curtida e solta corações!)">
-        <span id="radio-like-icon" class="text-base text-pink-400">♥</span>
-        <span id="radio-like-count" class="font-mono text-[11px]">38</span>
-        <span class="text-[10px] text-pink-400/80">Curtir</span>
-      </button>
-
-      <!-- Playlist Trigger Button -->
-      <button id="btn-toggle-playlist-bottom" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-orange-500/60 bg-orange-950/40 text-orange-300 hover:bg-orange-900/60 hover:border-orange-400 text-xs font-semibold transition cursor-pointer" title="Ver Lista de Beats e Configurar Presets">
-        <span>📻</span>
-        <span>Playlist</span>
-        <span id="radio-playlist-badge" class="px-1.5 py-0.2 rounded-full bg-orange-500 text-black text-[10px] font-mono font-bold">4</span>
-      </button>
-    </div>
-  </div>
-
-  <!-- SLIDE-OVER PLAYLIST DRAWER (Left Side) -->
-  <aside id="playlist-drawer" class="absolute top-0 left-0 bottom-0 w-84 sm:w-96 max-w-[92vw] bg-[#0b0e14]/98 backdrop-blur-lg border-r border-zinc-800/95 shadow-2xl z-40 flex flex-col transition-transform duration-300 ease-out -translate-x-full">
-    <!-- Header -->
-    <div class="flex items-center justify-between px-4 py-3.5 border-b border-zinc-800/90 shrink-0">
-      <div class="flex items-center gap-2">
-        <span class="text-lg">📻</span>
-        <div>
-          <h2 class="text-xs font-mono uppercase tracking-wider text-zinc-100 font-semibold">
-            Rádio & Beats Playlist
-          </h2>
-          <p id="playlist-subtitle" class="text-[10px] text-zinc-400">Cada música com seu próprio Preset Visual</p>
-        </div>
+    <div class="scrub">
+      <span id="radio-time-current" class="time">0:00</span>
+      <div id="radio-progress-bar-bg" class="progress">
+        <div id="radio-progress-bar-fill" class="progress-fill"></div>
       </div>
-      <button id="btn-close-playlist" class="p-1.5 rounded-md text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition cursor-pointer" title="Fechar Playlist (Esc)">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-        </svg>
+      <span id="radio-time-total" class="time">--:--</span>
+    </div>
+
+    <div class="player-actions">
+      <button id="radio-mode-toggle" class="admin-only btn" title="Preset fixo por faixa ou visual aleatório">
+        <span id="radio-mode-label">Preset da faixa</span>
+      </button>
+      <button id="radio-btn-like" class="btn" title="Curtir este beat">
+        <span id="radio-like-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.8 4.5c2.2 0 3.6 1.2 5.2 3 1.6-1.8 3-3 5.2-3 3.8 0 5.9 3.9 4.4 7.3C19.5 16.4 12 21 12 21z"/></svg></span>
+        <span id="radio-like-count" class="mono" style="font-size:11px">38</span>
+      </button>
+      <button id="btn-toggle-playlist-bottom" class="btn" title="Lista de beats">
+        Lista <span id="radio-playlist-badge" class="count">4</span>
+      </button>
+    </div>
+  </footer>
+
+  <!-- ======================================================================
+       PLAYLIST DRAWER (left)
+       ====================================================================== -->
+  <aside id="playlist-drawer" class="drawer drawer-left transition-transform duration-300 ease-out -translate-x-full">
+    <div class="drawer-head">
+      <div>
+        <span class="label">Catálogo</span>
+        <h2 class="heading" style="margin-top:8px">Beats</h2>
+        <p id="playlist-subtitle">Cada beat tem seu próprio visual.</p>
+      </div>
+      <button id="btn-close-playlist" class="btn btn-ghost btn-icon" title="Fechar (Esc)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
     </div>
 
-    <!-- Admin Quick Actions Bar in Drawer -->
-    <div class="admin-only p-3 border-b border-zinc-800/80 bg-zinc-900/60 flex flex-col gap-2 shrink-0">
-      <div class="flex items-center justify-between gap-2">
-        <!-- Save current visual to current track -->
-        <button id="btn-save-current-preset" class="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-cyan-500/50 bg-cyan-950/40 text-cyan-200 text-xs font-medium hover:border-cyan-400 hover:bg-cyan-900/50 transition cursor-pointer" title="Salvar o cenário e visual atual da tela como preset deste beat">
-          <span>💾</span>
-          <span>Salvar Preset no Beat</span>
+    <div class="admin-only hidden section" style="padding-top:14px; padding-bottom:14px">
+      <div class="flex gap-1.5">
+        <button id="btn-save-current-preset" class="btn flex-1 justify-center" title="Gravar o visual atual da tela no beat que está tocando">
+          Gravar visual no beat atual
         </button>
-
-        <!-- Attach Audio Files Button -->
-        <label class="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-emerald-500/50 bg-emerald-950/40 text-emerald-200 text-xs font-medium hover:border-emerald-400 hover:bg-emerald-900/50 transition cursor-pointer text-center">
-          <span>➕</span>
-          <span>Upar Beats</span>
+        <label class="btn flex-1 justify-center">
+          Adicionar beats
           <input id="playlist-file-input" type="file" accept="audio/*" multiple class="hidden" />
         </label>
       </div>
-      <p class="text-[10px] text-zinc-400 leading-tight">
-        💡 Arraste e solte arquivos de áudio (.mp3, .wav) direto na tela para adicioná-los!
-      </p>
+      <p style="font-size:11px">Arraste arquivos de áudio para a tela para adicionar. Clique em <strong>Editar</strong> para renomear e colocar tags.</p>
     </div>
 
-    <!-- Visitor Notice in Drawer -->
-    <div class="visitor-only p-3 border-b border-zinc-800/80 bg-zinc-900/40 flex flex-col gap-1.5 shrink-0">
-      <div class="flex items-center justify-between">
-        <span class="text-xs font-semibold text-zinc-200 flex items-center gap-1.5">
-          <span class="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></span>
-          <span>Playlist Oficial de Beats</span>
-        </span>
-        <span class="text-[9px] font-mono text-purple-300 bg-purple-950/90 px-2 py-0.5 rounded border border-purple-700/60 font-semibold">MODO OUVINTE</span>
-      </div>
-      <p class="text-[11px] text-zinc-400 leading-relaxed">
-        Clique em qualquer beat para ouvir e curtir com o coração <strong>♥</strong>. O cenário, as cores e o robô mudam automaticamente para cada beat!
-      </p>
-    </div>
+    <div id="playlist-tag-filter" class="tag-filter hidden"></div>
 
-    <!-- Scrollable Track List -->
-    <div id="playlist-items-container" class="flex-1 overflow-y-auto sidebar-scroll p-3 flex flex-col gap-2">
-      <!-- Rendered dynamically by RadioPlaylistManager -->
+    <div id="playlist-items-container" class="drawer-body">
+      <!-- Rendered by RadioPlaylistManager -->
     </div>
   </aside>
+  <div id="playlist-backdrop" class="backdrop transition-opacity duration-300 opacity-0 pointer-events-none"></div>
 
-  <!-- Sidebars Backdrops -->
-  <div id="playlist-backdrop" class="absolute inset-0 bg-black/60 backdrop-blur-xs z-30 transition-opacity duration-300 opacity-0 pointer-events-none"></div>
-  <div id="sidebar-backdrop" class="absolute inset-0 bg-black/60 backdrop-blur-xs z-25 transition-opacity duration-300 opacity-0 pointer-events-none"></div>
+  <!-- ======================================================================
+       STUDIO DRAWER (right, producer only)
+       ====================================================================== -->
+  <aside id="custom-sidebar" class="drawer drawer-right transition-transform duration-300 ease-out translate-x-full">
+    <div class="drawer-head">
+      <div>
+        <span class="label">Produtor</span>
+        <h2 class="heading" style="margin-top:8px">Estúdio</h2>
+      </div>
+      <button id="btn-close-sidebar" class="btn btn-ghost btn-icon" title="Fechar (Esc)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
 
-  <!-- ==========================================================================
-       SUPER RESTRICTED DEV ACCESS GATEWAY MODAL (JC_MORAL)
-       ========================================================================== -->
-  <div id="dev-gateway-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md transition-all duration-200 opacity-0 pointer-events-none">
-    <div class="relative w-full max-w-md rounded-2xl border border-red-500/50 bg-[#090b10] p-6 shadow-2xl shadow-red-950/60 flex flex-col gap-4 font-mono select-none overflow-hidden">
-      <!-- CRT scanline effect on modal -->
-      <div class="absolute inset-0 bg-gradient-to-b from-transparent via-red-500/[0.04] to-transparent pointer-events-none"></div>
-
-      <!-- Modal Header -->
-      <div class="flex items-start justify-between border-b border-zinc-800 pb-3">
-        <div class="flex flex-col gap-0.5">
-          <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
-            <span class="text-xs text-red-400 font-bold tracking-widest uppercase">ANTIGRAVITY // DEV ACCESS</span>
-          </div>
-          <span class="text-[11px] text-zinc-400">PRODUCER ID: <strong class="text-zinc-100 font-semibold tracking-wider">JC_MORAL</strong></span>
+    <div class="drawer-body">
+      <div class="section">
+        <div class="section-head"><span class="label">01 — Cenário</span></div>
+        <div class="opt-list">
+          <button data-scenery-btn="classic" class="opt">Clássico <small>onda + montanha</small></button>
+          <button data-scenery-btn="street" class="opt active-pill">Street <small>skatepark</small></button>
+          <button data-scenery-btn="cybercode" class="opt">Fluxo cripto <small>base64</small></button>
+          <button data-scenery-btn="valley3d" class="opt">Vale 3D <small>planeta orbital</small></button>
+          <button data-scenery-btn="horizon2d" class="opt">Cordilheira <small>2D</small></button>
+          <button data-scenery-btn="cybergrid" class="opt">Horizonte cyber <small>monólitos EQ</small></button>
+          <button data-scenery-btn="warp3d" class="opt">Túnel warp <small>3D</small></button>
         </div>
-        <button id="btn-close-dev-modal" class="p-1 rounded text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition cursor-pointer" title="Cancelar [Esc]">
-          ✕
+      </div>
+
+      <div class="section">
+        <div class="section-head"><span class="label">02 — Robô</span></div>
+        <div class="opt-grid">
+          <button data-palette-btn="hybrid" class="opt active-pill">Híbrido LDR</button>
+          <button data-palette-btn="cytro" class="opt">Mecha green</button>
+          <button data-palette-btn="xbot" class="opt">XBOT 4000</button>
+          <button data-palette-btn="kvrc" class="opt">K-VRC</button>
+          <button data-palette-btn="scratch" class="opt" style="grid-column: span 2">Scratch P&amp;B</button>
+        </div>
+        <span class="label" style="margin-top:6px">Acessório</span>
+        <div class="opt-grid">
+          <button data-accessory-btn="none" class="opt">Nenhum</button>
+          <button data-accessory-btn="cap" class="opt active-pill">Boné</button>
+          <button data-accessory-btn="cowboy" class="opt">Cowboy</button>
+          <button data-accessory-btn="predator" class="opt">Predador</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><span class="label">03 — Camadas</span></div>
+        <div class="opt-list">
+          <button data-sketch-btn="devil" class="opt active-pill">Rabiscos de capeta <small>caótico</small></button>
+          <button data-sketch-btn="earcups" class="opt">Ondas nos fones <small>original</small></button>
+          <button data-sketch-btn="waves" class="opt">Ondas no corpo <small>suave</small></button>
+        </div>
+        <div class="opt-grid">
+          <button id="btn-toggle-sketch" class="opt active-pill" title="Ligar/desligar camada 2D">Camada 2D</button>
+          <button id="btn-toggle-ascii" class="opt active-pill" title="Ligar/desligar fundo ASCII">Fundo ASCII</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><span class="label">04 — Áudio</span></div>
+        <button id="btn-system-audio-sidebar" class="btn btn-block btn-system-audio-trigger">
+          <span class="system-audio-btn-label">Capturar áudio</span>
+          <span class="count">LIVE</span>
+        </button>
+        <p>Escolha a aba do Spotify/YouTube (ou a tela) e marque <strong>Compartilhar áudio</strong>.</p>
+
+        <div class="flex items-center justify-between" style="margin-top:4px">
+          <label for="reactivity-slider" style="font-size:12px">Intensidade da reação</label>
+          <span id="reactivity-val" class="count" style="color: var(--text)">75%</span>
+        </div>
+        <input id="reactivity-slider" type="range" min="0.2" max="1.4" step="0.05" value="0.75" class="cursor-pointer" />
+
+        <div class="opt-grid" style="margin-top:4px">
+          <button id="btn-play-inverno" class="opt">inverno.mp3</button>
+          <button id="btn-Switch-track" class="opt">Synth lo-fi</button>
+          <label class="opt">
+            Abrir arquivo
+            <input id="audio-file-input" type="file" accept="audio/*" class="hidden" />
+          </label>
+          <button id="btn-mic" class="opt">Microfone</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><span class="label">05 — Marca d'Água (ElevenLabs Tag)</span></div>
+        <div class="flex items-center justify-between">
+          <span style="font-size:12px">Tag JC_MORAL periódica</span>
+          <button id="btn-toggle-watermark" class="btn" title="Ativar/desativar marca d'água de voz">
+            <span id="watermark-status-label">Desativada</span>
+          </button>
+        </div>
+        <p>Voz gerada via ElevenLabs dizendo <em>"JC Moral. Moral Beats."</em> com efeito sonoro aplicado.</p>
+
+        <span class="label" style="margin-top:4px">Intervalo</span>
+        <div class="opt-grid">
+          <button data-watermark-interval="15" class="opt">A cada 15s</button>
+          <button data-watermark-interval="30" class="opt active-pill">A cada 30s</button>
+          <button data-watermark-interval="45" class="opt">A cada 45s</button>
+          <button data-watermark-interval="60" class="opt">A cada 60s</button>
+        </div>
+
+        <span class="label" style="margin-top:4px">Efeito sonoro</span>
+        <div class="opt-grid">
+          <button data-watermark-effect="distorted" class="opt active-pill">Distorcido <small>cyber</small></button>
+          <button data-watermark-effect="robot" class="opt">Robô <small>resonador</small></button>
+          <button data-watermark-effect="radio" class="opt">Rádio <small>lo-fi</small></button>
+          <button data-watermark-effect="clean" class="opt">Limpo <small>natural</small></button>
+        </div>
+
+        <button id="btn-test-watermark" class="btn btn-block justify-center" style="margin-top:4px">
+          <span>🔊 Ouvir tag agora (Testar)</span>
         </button>
       </div>
 
-      <!-- Security Status Banner -->
-      <div id="dev-modal-status" class="p-2.5 rounded-lg border border-red-500/30 bg-red-950/20 text-red-300 text-xs flex items-center gap-2.5">
-        <span class="text-lg">🛡️</span>
-        <div class="flex flex-col">
-          <span class="font-bold text-[11px]">NÍVEL DE ACESSO: SUPER RESTRITO</span>
-          <span class="text-[10px] text-red-300/80">Insira a chave mestra para liberar o painel do produtor</span>
-        </div>
+      <div class="section" style="border-bottom:0">
+        <div class="section-head"><span class="label">06 — Janela flutuante</span></div>
+        <button id="btn-pip-sidebar" class="btn btn-block btn-pip-trigger">
+          <span class="pip-btn-label">PiP</span>
+          <span class="count">macOS</span>
+        </button>
+        <p>Mantém uma mini janela por cima de qualquer app enquanto você trabalha.</p>
+      </div>
+    </div>
+  </aside>
+  <div id="sidebar-backdrop" class="backdrop transition-opacity duration-300 opacity-0 pointer-events-none"></div>
+
+  <!-- ======================================================================
+       BIO DRAWER (right)
+       ====================================================================== -->
+  <aside id="bio-drawer" class="drawer drawer-right transition-transform duration-300 ease-out translate-x-full">
+    <div class="drawer-head">
+      <div>
+        <span class="label">Produtor &amp; artista audiovisual</span>
+        <h2 class="heading" style="margin-top:8px">JC_MORAL</h2>
+      </div>
+      <button id="btn-close-bio" class="btn btn-ghost btn-icon" title="Fechar (Esc)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+
+    <div class="drawer-body">
+      <div class="section">
+        <span class="label">Densidade moral</span>
+        <p>Inspirado na crueza e na ficção científica distópica de <em>Love, Death + Robots</em>. A identidade sonora de <strong>JC_MORAL</strong> busca o peso da consciência em sub-graves densos, timbres analógicos cortantes e baterias orgânicas.</p>
       </div>
 
-      <!-- Credential Form -->
-      <form id="dev-login-form" class="flex flex-col gap-3" onsubmit="return false;">
-        <div class="flex flex-col gap-1.5">
-          <label for="dev-passcode-input" class="text-[10px] text-zinc-400 uppercase tracking-wider">
-            Chave Mestra / Master Passcode
-          </label>
-          <div class="relative">
-            <input
-              id="dev-passcode-input"
-              type="password"
-              placeholder="Digite a chave mestra..."
-              autocomplete="current-password"
-              class="w-full px-3.5 py-2.5 rounded-lg border border-zinc-700 bg-zinc-900/90 text-zinc-100 text-sm font-mono tracking-wider focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400 placeholder:text-zinc-600"
-            />
-            <button
-              id="btn-toggle-passcode-visibility"
-              type="button"
-              class="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200 text-xs cursor-pointer"
-              title="Mostrar/Ocultar"
-            >👁️</button>
-          </div>
+      <div class="section">
+        <span class="label">Feito à mão</span>
+        <p>Cada melodia, acorde, 808, sintetizador e percussão é composto e mixado à mão, nota por nota. Nenhuma IA generativa entra no processo.</p>
+      </div>
+
+      <div class="section">
+        <span class="label">Arsenal</span>
+        <ul class="bio-list">
+          <li><span>Estilos</span><span>Lo-fi, cyber drill, boombap</span></li>
+          <li><span>Visual</span><span>WebGL 3D + shaders ASCII</span></li>
+        </ul>
+      </div>
+
+      <div class="section">
+        <span class="label">Serviços</span>
+        <ul class="bio-list">
+          <li><span>Beats exclusivos / leases</span><span></span></li>
+          <li><span>Sound design &amp; trilha para games</span><span></span></li>
+          <li><span>Mix &amp; master analógica / híbrida</span><span></span></li>
+        </ul>
+      </div>
+
+      <div class="section" style="border-bottom:0">
+        <span class="label">Contato</span>
+        <div>
+          <a href="mailto:contato@jcmoral.com" class="bio-link"><span>contato@jcmoral.com</span><span>email</span></a>
+          <a href="#" class="bio-link"><span>Spotify</span><span>&#8599;</span></a>
+          <a href="#" class="bio-link"><span>SoundCloud</span><span>&#8599;</span></a>
+          <a href="#" class="bio-link"><span>Instagram</span><span>&#8599;</span></a>
+        </div>
+      </div>
+    </div>
+  </aside>
+  <div id="bio-backdrop" class="backdrop transition-opacity duration-300 opacity-0 pointer-events-none"></div>
+
+  <!-- ======================================================================
+       PRODUCER ACCESS MODAL
+       ====================================================================== -->
+  <div id="dev-gateway-modal" class="modal transition-opacity duration-200 opacity-0 pointer-events-none">
+    <div class="modal-card">
+      <div class="drawer-head">
+        <div>
+          <span class="label">Área restrita</span>
+          <h2 class="heading" style="margin-top:8px">Acesso do produtor</h2>
+        </div>
+        <button id="btn-close-dev-modal" class="btn btn-ghost btn-icon" title="Cancelar (Esc)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+
+      <form id="dev-login-form" onsubmit="return false;">
+        <label for="dev-passcode-input" class="label">Chave mestra</label>
+        <div class="relative">
+          <input id="dev-passcode-input" type="password" placeholder="Digite a chave" autocomplete="current-password" class="field mono" style="padding-right:72px" />
+          <button id="btn-toggle-passcode-visibility" type="button" class="link absolute right-3 top-1/2 -translate-y-1/2" style="font-size:11px" title="Mostrar/ocultar">mostrar</button>
         </div>
 
-        <!-- Lockout / Error Message Area -->
-        <div id="dev-login-error" class="text-[11px] text-red-400 font-semibold hidden flex items-center gap-1.5 p-2 rounded bg-red-950/40 border border-red-900/60">
-          <span>⚠️</span>
-          <span id="dev-login-error-text">Chave incorreta. Tentativas restantes: 3</span>
+        <div id="dev-login-error" class="form-error hidden">
+          <span id="dev-login-error-text">Chave incorreta.</span>
         </div>
 
-        <!-- Helper hint -->
-        <div class="text-[10px] text-zinc-400/80 leading-relaxed border-t border-zinc-800/80 pt-2 flex items-center justify-between">
-          <span>Chave Mestra: <code class="text-orange-400 px-1 py-0.5 rounded bg-zinc-800/80 font-bold">JC-MORAL-DEV-7790-2026</code></span>
-          <span class="text-[9px] text-zinc-500">Atalho: <strong>Ctrl+Shift+D</strong></span>
-        </div>
+        <p class="hint">Chave: <code>JC-MORAL-DEV-7790-2026</code> · Atalho: Ctrl+Shift+D</p>
 
-        <!-- Action Buttons -->
-        <div class="flex items-center justify-end gap-2 pt-2">
-          <button
-            id="btn-cancel-dev-login"
-            type="button"
-            class="px-3 py-2 rounded-lg border border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 text-xs font-medium transition cursor-pointer"
-          >
-            Cancelar
-          </button>
-          <button
-            id="btn-submit-dev-login"
-            type="submit"
-            class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold text-xs tracking-wide shadow-lg shadow-red-900/40 transition cursor-pointer flex items-center gap-1.5 active:scale-95"
-          >
-            <span>🔓</span>
-            <span>AUTENTICAR</span>
-          </button>
+        <div class="flex justify-end gap-1.5" style="margin-top:6px">
+          <button id="btn-cancel-dev-login" type="button" class="btn btn-ghost">Cancelar</button>
+          <button id="btn-submit-dev-login" type="submit" class="btn btn-accent">Entrar</button>
         </div>
       </form>
     </div>
   </div>
-
-  <!-- ==========================================================================
-       SLIDE-OVER BIO & PORTFOLIO DRAWER (Right Side)
-       ========================================================================== -->
-  <aside id="bio-drawer" class="fixed top-0 right-0 bottom-0 w-84 sm:w-96 max-w-[92vw] bg-[#0b0e14]/98 backdrop-blur-lg border-l border-zinc-800/95 shadow-2xl z-40 flex flex-col transition-transform duration-300 ease-out translate-x-full">
-    <!-- Header -->
-    <div class="flex items-center justify-between px-5 py-4 border-b border-zinc-800/90 shrink-0">
-      <div class="flex items-center gap-2.5">
-        <span class="w-3 h-3 rounded-full bg-orange-500 animate-pulse"></span>
-        <div>
-          <h2 class="text-sm font-bold text-zinc-100 uppercase tracking-wider">
-            JC_MORAL
-          </h2>
-          <p class="text-[10px] font-mono text-zinc-400">Produtor & Artista Audiovisual</p>
-        </div>
-      </div>
-      <button id="btn-close-bio" class="p-1.5 rounded-md text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition cursor-pointer" title="Fechar (Esc)">✕</button>
-    </div>
-
-    <!-- Content -->
-    <div class="flex-1 overflow-y-auto sidebar-scroll p-5 flex flex-col gap-5 text-xs text-zinc-300">
-      <!-- Conceito: Densidade Moral -->
-      <div class="flex flex-col gap-2 p-3.5 rounded-xl border border-orange-500/30 bg-orange-950/20">
-        <span class="text-[11px] font-mono text-orange-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-          <span>⚡</span> Conceito: Densidade Moral
-        </span>
-        <p class="text-[11px] text-zinc-300 leading-relaxed">
-          Inspirado na crueza e ficção científica distópica de <em>Love, Death + Robots</em>. A identidade sonora de <strong>JC_MORAL</strong> busca o peso da consciência em frequências sub-graves densas, timbres analógicos cortantes e baterias orgânicas.
-        </p>
-      </div>
-
-      <!-- Manifesto: Beats 100% Feitos à Mão (Zero IA) -->
-      <div class="flex flex-col gap-2 p-3.5 rounded-xl border border-emerald-500/40 bg-emerald-950/20 shadow-md shadow-emerald-950/30">
-        <div class="flex items-center justify-between">
-          <span class="text-[11px] font-mono text-emerald-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-            <span>🎹</span> Beats 100% Autorais (Sem IA)
-          </span>
-          <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-900/80 text-emerald-200 border border-emerald-600/60 font-bold">HUMAN MADE</span>
-        </div>
-        <p class="text-[11px] text-zinc-300 leading-relaxed">
-          Cada melodia, acorde, progressão harmônica, 808, sintetizador e percussão é criado e mixado à mão nota por nota pelo produtor <strong>JC_MORAL</strong>. Zero inteligência artificial, zero geração procedural genérica. Uma declaração em favor da visceralidade artística e musicalidade humana.
-        </p>
-      </div>
-
-      <!-- Ficha & Arsenal -->
-      <div class="flex flex-col gap-2">
-        <span class="text-[11px] font-mono text-zinc-400 font-bold uppercase tracking-wider">
-          🛠️ Arsenal & Síntese
-        </span>
-        <div class="grid grid-cols-2 gap-2 text-[10px] font-mono">
-          <div class="p-2.5 rounded-lg bg-zinc-900/80 border border-zinc-800">
-            <span class="text-zinc-400 block">Estilos:</span>
-            <span class="text-zinc-200 font-bold">Lo-Fi • Cyber Drill • Boombap</span>
-          </div>
-          <div class="p-2.5 rounded-lg bg-zinc-900/80 border border-zinc-800">
-            <span class="text-zinc-400 block">Visual:</span>
-            <span class="text-zinc-200 font-bold">3D WebGL + Shaders ASCII</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Serviços & Parcerias -->
-      <div class="flex flex-col gap-2">
-        <span class="text-[11px] font-mono text-zinc-400 font-bold uppercase tracking-wider">
-          💼 Serviços & Colaborações
-        </span>
-        <ul class="flex flex-col gap-1.5 text-[11px] text-zinc-300">
-          <li class="flex items-center gap-2"><span>▪</span> Produção de Beats Exclusivos / Leases</li>
-          <li class="flex items-center gap-2"><span>▪</span> Sound Design & Trilha Sonora para Games</li>
-          <li class="flex items-center gap-2"><span>▪</span> Mix & Master Analógica / Híbrida</li>
-        </ul>
-      </div>
-
-      <!-- Contato / Redes -->
-      <div class="flex flex-col gap-2.5 pt-3 border-t border-zinc-800">
-        <span class="text-[11px] font-mono text-zinc-400 font-bold uppercase tracking-wider">
-          📬 Contato & Redes
-        </span>
-        <div class="flex flex-col gap-2">
-          <a href="mailto:contato@jcmoral.com" class="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-orange-500/60 text-zinc-200 transition">
-            <span>Email para Beats</span>
-            <span class="text-[10px] font-mono text-orange-400">Enviar ↗</span>
-          </a>
-          <div class="grid grid-cols-3 gap-2 text-center text-[10px] font-mono">
-            <span class="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300">Spotify</span>
-            <span class="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300">SoundCloud</span>
-            <span class="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300">Instagram</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </aside>
-  <div id="bio-backdrop" class="fixed inset-0 bg-black/60 backdrop-blur-xs z-30 transition-opacity duration-300 opacity-0 pointer-events-none"></div>
 
   <script>
 ${bundleJs}
@@ -769,4 +795,4 @@ ${bundleJs}
 `;
 
 fs.writeFileSync(path.join(__dirname, 'index.html'), standaloneHtml, 'utf8');
-console.log('Updated standalone index.html with Hamburger Sidebar and Scenery Selector.');
+console.log('Built standalone index.html');

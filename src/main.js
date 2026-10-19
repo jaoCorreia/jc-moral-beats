@@ -3517,6 +3517,9 @@ function initApp() {
     if (typeof radio !== 'undefined' && radio) {
       radio.syncUI();
     }
+    if (typeof watermark !== 'undefined' && watermark) {
+      watermark.onAudioStateChange(audio.isPlaying);
+    }
   }
 
   audio.onStateChange = syncAudioUI;
@@ -3680,9 +3683,31 @@ function initApp() {
   // ==========================================================================
   // RADIO PLAYLIST & BEATS SHOWCASE ENGINE
   // ==========================================================================
+  // Small UI helpers shared by the playlist / toasts
+  const ICON_PLAY = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>';
+  const ICON_PAUSE = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>';
+  const ICON_HEART = '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.8 4.5c2.2 0 3.6 1.2 5.2 3 1.6-1.8 3-3 5.2-3 3.8 0 5.9 3.9 4.4 7.3C19.5 16.4 12 21 12 21z"/></svg>';
+
+  function escapeHtml(str) {
+    return String(str ?? '').replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  // "#Lo Fi " -> "lo-fi"
+  function normalizeTag(raw) {
+    return String(raw || '')
+      .trim()
+      .replace(/^#+/, '')
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^\p{L}\p{N}\-_]/gu, '')
+      .slice(0, 24);
+  }
+
   function spawnHeartBurst(parentEl) {
     if (!parentEl) return;
-    const count = 10;
+    const count = 8;
     const rect = parentEl.getBoundingClientRect();
     const originX = rect.width * 0.5;
     const originY = rect.height * 0.65;
@@ -3690,22 +3715,20 @@ function initApp() {
     for (let i = 0; i < count; i++) {
       const heart = document.createElement('div');
       heart.className = 'floating-heart pointer-events-none absolute select-none';
-      heart.textContent = Math.random() > 0.35 ? '♥' : (Math.random() > 0.5 ? '🔥' : '🎧');
-      const size = 18 + Math.random() * 20;
+      heart.textContent = '♥';
+      const size = 16 + Math.random() * 16;
       const angle = (Math.PI / 2) + (Math.random() - 0.5) * 1.6;
       const speed = 70 + Math.random() * 120;
       const vx = Math.cos(angle) * speed;
       const vy = -Math.sin(angle) * speed;
       const rot = (Math.random() - 0.5) * 50;
-      const colors = ['#f43f5e', '#fb7185', '#f97316', '#e11d48', '#ec4899', '#facc15'];
-      const color = colors[Math.floor(Math.random() * colors.length)];
+      const color = Math.random() > 0.3 ? '#ff5a1f' : '#ebe9e3';
 
       heart.style.cssText = `
         left: ${originX + (Math.random() - 0.5) * 40}px;
         top: ${originY}px;
         font-size: ${size}px;
         color: ${color};
-        text-shadow: 0 0 12px ${color};
         transform: translate(-50%, -50%) rotate(${rot}deg);
         transition: transform 1.25s cubic-bezier(0.1, 0.8, 0.2, 1), opacity 1.25s ease-out;
         opacity: 1;
@@ -3724,20 +3747,266 @@ function initApp() {
     }
   }
 
+// ============================================================================
+// VOICE WATERMARK ENGINE (ELEVENLABS "JC_MORAL" PRODUCER TAG)
+// ============================================================================
+class VoiceWatermarkEngine {
+  constructor(audioEngine) {
+    this.audio = audioEngine;
+    this.enabled = localStorage.getItem('ldr_watermark_enabled') === 'true';
+    this.interval = parseInt(localStorage.getItem('ldr_watermark_interval') || '30', 10);
+    this.effect = localStorage.getItem('ldr_watermark_effect') || 'distorted'; // distorted, robot, radio, clean
+    this.volume = parseFloat(localStorage.getItem('ldr_watermark_volume') || '0.85');
+    this.timer = null;
+    this.audioBuffer = null;
+    this.isLoading = false;
+
+    this.loadAudio();
+  }
+
+  async loadAudio() {
+    if (this.audioBuffer || this.isLoading) return;
+    try {
+      this.isLoading = true;
+      const res = await fetch('/watermark.mp3');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const arrayBuffer = await res.arrayBuffer();
+      this.audio.initContext();
+      this.audioBuffer = await this.audio.ctx.decodeAudioData(arrayBuffer);
+      this.isLoading = false;
+    } catch (err) {
+      console.warn('Voice watermark audio could not load:', err);
+      this.isLoading = false;
+    }
+  }
+
+  makeDistortionCurve(amount = 28) {
+    const k = amount;
+    const n_samples = 44100;
+    const curve = new Float32Array(n_samples);
+    const deg = Math.PI / 180;
+    for (let i = 0; i < n_samples; ++i) {
+      const x = (i * 2) / n_samples - 1;
+      curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
+    }
+    return curve;
+  }
+
+  playTag(customEffect = null) {
+    this.audio.initContext();
+    if (!this.audioBuffer) {
+      this.loadAudio().then(() => {
+        if (this.audioBuffer) this.playTag(customEffect);
+      });
+      return;
+    }
+
+    const ctx = this.audio.ctx;
+    const now = ctx.currentTime;
+    const source = ctx.createBufferSource();
+    source.buffer = this.audioBuffer;
+
+    const chosenEffect = customEffect || this.effect;
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(this.volume, now);
+
+    if (chosenEffect === 'distorted') {
+      // Overdrive distortion + cyber bandpass + slap delay
+      const distortion = ctx.createWaveShaper();
+      distortion.curve = this.makeDistortionCurve(35);
+      distortion.oversample = '4x';
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(1350, now);
+      filter.Q.setValueAtTime(3.2, now);
+
+      const delay = ctx.createDelay();
+      delay.delayTime.setValueAtTime(0.09, now);
+      const delayGain = ctx.createGain();
+      delayGain.gain.setValueAtTime(0.32, now);
+      delay.connect(delayGain);
+      delayGain.connect(delay);
+
+      source.connect(distortion);
+      distortion.connect(filter);
+      filter.connect(masterGain);
+      filter.connect(delay);
+      delayGain.connect(masterGain);
+    } else if (chosenEffect === 'robot') {
+      // Resonant robotic peak filter
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'peaking';
+      filter.frequency.setValueAtTime(900, now);
+      filter.Q.setValueAtTime(6.5, now);
+      filter.gain.setValueAtTime(14, now);
+
+      source.connect(filter);
+      filter.connect(masterGain);
+    } else if (chosenEffect === 'radio') {
+      // Lo-fi walkie-talkie / telephone bandpass
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.setValueAtTime(450, now);
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(2600, now);
+
+      source.connect(hp);
+      hp.connect(lp);
+      lp.connect(masterGain);
+    } else {
+      // Clean
+      source.connect(masterGain);
+    }
+
+    // Connect to audio pipeline
+    masterGain.connect(this.audio.gainNode);
+    source.start(now);
+
+    // Audio-reactive transient & HUD notification
+    this.audio.kickPulse = 1.0;
+    const hudTrack = document.getElementById('track-name-display');
+    if (hudTrack) {
+      const originalText = hudTrack.textContent;
+      hudTrack.textContent = 'TAG // JC_MORAL (ELEVENLABS)';
+      setTimeout(() => {
+        if (hudTrack.textContent.startsWith('TAG //')) {
+          hudTrack.textContent = originalText;
+        }
+      }, 2000);
+    }
+  }
+
+  startScheduler() {
+    this.stopScheduler();
+    if (!this.enabled) return;
+
+    this.timer = setInterval(() => {
+      if (this.audio.isPlaying && this.enabled) {
+        this.playTag();
+      }
+    }, this.interval * 1000);
+  }
+
+  stopScheduler() {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+  }
+
+  onAudioStateChange(isPlaying) {
+    if (isPlaying && this.enabled) {
+      this.startScheduler();
+    } else {
+      this.stopScheduler();
+    }
+  }
+
+  toggle() {
+    this.setEnabled(!this.enabled);
+  }
+
+  setEnabled(val) {
+    this.enabled = !!val;
+    localStorage.setItem('ldr_watermark_enabled', this.enabled ? 'true' : 'false');
+    if (this.enabled) {
+      this.loadAudio();
+      if (this.audio.isPlaying) this.startScheduler();
+      showToast(`Marca d'água ativada (${this.interval}s).`);
+    } else {
+      this.stopScheduler();
+      showToast("Marca d'água desativada.");
+    }
+    this.syncUI();
+  }
+
+  setInterval(sec) {
+    this.interval = Math.max(5, parseInt(sec, 10) || 30);
+    localStorage.setItem('ldr_watermark_interval', this.interval);
+    if (this.enabled && this.audio.isPlaying) {
+      this.startScheduler();
+    }
+    this.syncUI();
+    showToast(`Intervalo da tag: ${this.interval}s.`);
+  }
+
+  setEffect(eff) {
+    this.effect = eff;
+    localStorage.setItem('ldr_watermark_effect', eff);
+    this.syncUI();
+    showToast(`Efeito da tag: ${eff}.`);
+    this.playTag(eff); // Toca uma demonstração rápida
+  }
+
+  syncUI() {
+    const topLabel = document.getElementById('watermark-top-label');
+    const statusLabel = document.getElementById('watermark-status-label');
+    const topBtn = document.getElementById('btn-watermark-top');
+    const toggleBtn = document.getElementById('btn-toggle-watermark');
+
+    const labelText = this.enabled ? `Tag: ${this.interval}s` : 'Tag: Off';
+    if (topLabel) topLabel.textContent = labelText;
+    if (statusLabel) statusLabel.textContent = this.enabled ? `Ativa (${this.interval}s)` : 'Desativada';
+
+    if (topBtn) topBtn.classList.toggle('active-pill', this.enabled);
+    if (toggleBtn) toggleBtn.classList.toggle('active-pill', this.enabled);
+
+    document.querySelectorAll('[data-watermark-interval]').forEach((btn) => {
+      const sec = parseInt(btn.getAttribute('data-watermark-interval'), 10);
+      btn.classList.toggle('active-pill', sec === this.interval);
+    });
+
+    document.querySelectorAll('[data-watermark-effect]').forEach((btn) => {
+      const eff = btn.getAttribute('data-watermark-effect');
+      btn.classList.toggle('active-pill', eff === this.effect);
+    });
+  }
+}
+  // Helper for time formatting / parsing in track trims
+  function formatSec(sec) {
+    if (isNaN(sec) || sec < 0) return '0:00';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  }
+
+  function parseSec(val) {
+    if (typeof val === 'number') return Math.max(0, val);
+    const str = String(val || '').trim();
+    if (!str) return 0;
+    if (str.includes(':')) {
+      const parts = str.split(':');
+      const m = parseFloat(parts[0]) || 0;
+      const s = parseFloat(parts[1]) || 0;
+      return Math.max(0, m * 60 + s);
+    }
+    return Math.max(0, parseFloat(str) || 0);
+  }
+
   class RadioPlaylistManager {
     constructor(audioEngine) {
       this.audio = audioEngine;
       this.mode = localStorage.getItem('ldr_radio_mode') || 'preset'; // 'preset' | 'auto'
       this.currentIndex = 0;
+      this.tagFilter = null;     // active tag filter in the playlist drawer
+      this.editingId = null;     // id of the track being edited (rename + tags + loop)
+      this.editDraft = null;     // { title, tags, loopStart, loopEnd, loopEnabled, maxLoops, pending }
 
       this.tracks = [
         {
           id: 'inverno',
-          title: 'Inverno // Lofi Chill',
+          title: 'Inverno',
           artist: 'JC_MORAL',
           bpm: 82,
           type: 'audio',
           src: '/inverno.mp3',
+          tags: ['lo-fi', 'chill'],
+          loopStart: 0,
+          loopEnd: 0,
+          loopEnabled: true,
+          maxLoops: 0,
           likes: parseInt(localStorage.getItem('ldr_likes_inverno') || '42', 10),
           preset: {
             scenery: 'street',
@@ -3749,11 +4018,16 @@ function initApp() {
         },
         {
           id: 'cyber-drift',
-          title: 'Cyber Drift // 82 BPM',
+          title: 'Cyber Drift',
           artist: 'JC_MORAL',
           bpm: 82,
           type: 'synth',
           synthIndex: 0,
+          tags: ['synth', 'lo-fi'],
+          loopStart: 0,
+          loopEnd: 0,
+          loopEnabled: true,
+          maxLoops: 0,
           likes: parseInt(localStorage.getItem('ldr_likes_cyber-drift') || '28', 10),
           preset: {
             scenery: 'cybercode',
@@ -3765,11 +4039,16 @@ function initApp() {
         },
         {
           id: 'zima-nebula',
-          title: 'Zima Nebula // 72 BPM',
+          title: 'Zima Nebula',
           artist: 'JC_MORAL',
           bpm: 72,
           type: 'synth',
           synthIndex: 1,
+          tags: ['ambient', 'synth'],
+          loopStart: 0,
+          loopEnd: 0,
+          loopEnabled: true,
+          maxLoops: 0,
           likes: parseInt(localStorage.getItem('ldr_likes_zima-nebula') || '56', 10),
           preset: {
             scenery: 'valley3d',
@@ -3781,11 +4060,16 @@ function initApp() {
         },
         {
           id: 'street-sk8',
-          title: 'Street Sk8 Anthem // Drill',
+          title: 'Street Sk8 Anthem',
           artist: 'JC_MORAL',
           bpm: 88,
           type: 'synth',
           synthIndex: 0,
+          tags: ['drill'],
+          loopStart: 0,
+          loopEnd: 0,
+          loopEnabled: true,
+          maxLoops: 0,
           likes: parseInt(localStorage.getItem('ldr_likes_street-sk8') || '73', 10),
           preset: {
             scenery: 'street',
@@ -3797,7 +4081,7 @@ function initApp() {
         }
       ];
 
-      // Load user saved presets
+      // Load user saved presets + renamed titles / tags / loop configs
       this.tracks.forEach((t) => {
         const saved = localStorage.getItem('ldr_track_preset_' + t.id);
         if (saved) {
@@ -3805,9 +4089,117 @@ function initApp() {
             t.preset = JSON.parse(saved);
           } catch (e) {}
         }
+        this.loadMeta(t);
       });
 
       this.initAudioHooks();
+    }
+
+    loadMeta(track) {
+      const raw = localStorage.getItem('ldr_track_meta_' + track.id);
+      if (!raw) return;
+      try {
+        const meta = JSON.parse(raw);
+        if (typeof meta.title === 'string' && meta.title.trim()) track.title = meta.title;
+        if (Array.isArray(meta.tags)) track.tags = meta.tags.map(normalizeTag).filter(Boolean);
+        if (typeof meta.loopStart === 'number') track.loopStart = meta.loopStart;
+        if (typeof meta.loopEnd === 'number') track.loopEnd = meta.loopEnd;
+        if (typeof meta.loopEnabled === 'boolean') track.loopEnabled = meta.loopEnabled;
+        if (typeof meta.maxLoops === 'number') track.maxLoops = meta.maxLoops;
+      } catch (e) {}
+    }
+
+    saveMeta(track) {
+      localStorage.setItem('ldr_track_meta_' + track.id, JSON.stringify({
+        title: track.title,
+        tags: track.tags || [],
+        loopStart: track.loopStart || 0,
+        loopEnd: track.loopEnd || 0,
+        loopEnabled: track.loopEnabled ?? true,
+        maxLoops: track.maxLoops || 0
+      }));
+    }
+
+    renameTrack(index, newTitle) {
+      const track = this.tracks[index];
+      const title = String(newTitle || '').trim().slice(0, 80);
+      if (!track || !title) return false;
+      track.title = title;
+      if (index === this.currentIndex) this.audio.currentFileLabel = title.toUpperCase();
+      this.saveMeta(track);
+      return true;
+    }
+
+    setTrackTags(index, tags) {
+      const track = this.tracks[index];
+      if (!track) return;
+      track.tags = [...new Set((tags || []).map(normalizeTag).filter(Boolean))].slice(0, 12);
+      this.saveMeta(track);
+      if (this.tagFilter && !this.getAllTags().some(([t]) => t === this.tagFilter)) {
+        this.tagFilter = null;
+      }
+    }
+
+    // [[tag, count], ...] sorted by usage
+    getAllTags() {
+      const counts = new Map();
+      this.tracks.forEach((t) => (t.tags || []).forEach((tag) => counts.set(tag, (counts.get(tag) || 0) + 1)));
+      return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    }
+
+    startEditing(index) {
+      const track = this.tracks[index];
+      if (!track) return;
+      this.editingId = track.id;
+      this.editDraft = {
+        title: track.title,
+        tags: [...(track.tags || [])],
+        loopStart: track.loopStart || 0,
+        loopEnd: track.loopEnd || 0,
+        loopEnabled: track.loopEnabled !== false,
+        maxLoops: track.maxLoops || 0,
+        pending: ''
+      };
+      this.renderPlaylistDrawer();
+      const input = document.querySelector('#playlist-items-container .edit-title');
+      if (input) { input.focus(); input.select(); }
+    }
+
+    cancelEditing() {
+      this.editingId = null;
+      this.editDraft = null;
+      this.renderPlaylistDrawer();
+    }
+
+    commitEditing() {
+      const index = this.tracks.findIndex((t) => t.id === this.editingId);
+      const draft = this.editDraft;
+      if (index < 0 || !draft) return this.cancelEditing();
+      const tags = [...draft.tags];
+      if (draft.pending) tags.push(draft.pending);
+      if (!draft.title.trim()) {
+        showToast('O nome do beat não pode ficar vazio.');
+        return;
+      }
+      this.renameTrack(index, draft.title);
+      this.setTrackTags(index, tags);
+
+      const track = this.tracks[index];
+      track.loopStart = Math.max(0, draft.loopStart || 0);
+      track.loopEnd = Math.max(0, draft.loopEnd || 0);
+      if (track.loopEnd > 0 && track.loopEnd <= track.loopStart) {
+        track.loopEnd = 0;
+      }
+      track.loopEnabled = draft.loopEnabled !== false;
+      track.maxLoops = Math.max(0, parseInt(draft.maxLoops, 10) || 0);
+      track.currentLoopCount = 0;
+      this.saveMeta(track);
+
+      this.editingId = null;
+      this.editDraft = null;
+      this.renderPlaylistDrawer();
+      this.syncUI();
+      showToast('Beat atualizado.');
     }
 
     getCurrentTrack() {
@@ -3817,12 +4209,44 @@ function initApp() {
     initAudioHooks() {
       this.audio.ensureAudioElement();
       this.audio.audioElement.addEventListener('ended', () => {
+        const curTrack = this.getCurrentTrack();
+        if (curTrack && curTrack.loopEnabled !== false && (!curTrack.loopEnd || curTrack.loopEnd === 0)) {
+          curTrack.currentLoopCount = (curTrack.currentLoopCount || 0) + 1;
+          const max = curTrack.maxLoops || 0;
+          if (max > 0 && curTrack.currentLoopCount >= max) {
+            this.next();
+            return;
+          }
+          this.audio.audioElement.currentTime = curTrack.loopStart || 0;
+          this.audio.audioElement.play().catch(() => {});
+          return;
+        }
+
         if (this.audio.isPlaying && (this.audio.mode === 'inverno' || this.audio.mode === 'file')) {
           this.next();
         }
       });
 
       this.audio.audioElement.addEventListener('timeupdate', () => {
+        const curTrack = this.getCurrentTrack();
+        if (curTrack && (this.audio.mode === 'inverno' || this.audio.mode === 'file')) {
+          const start = curTrack.loopStart || 0;
+          const end = curTrack.loopEnd || 0;
+          const isLoopOn = curTrack.loopEnabled !== false;
+          const cur = this.audio.audioElement.currentTime;
+
+          if (end > start && cur >= end) {
+            if (isLoopOn) {
+              curTrack.currentLoopCount = (curTrack.currentLoopCount || 0) + 1;
+              const max = curTrack.maxLoops || 0;
+              if (max > 0 && curTrack.currentLoopCount >= max) {
+                this.next();
+                return;
+              }
+              this.audio.audioElement.currentTime = start;
+            }
+          }
+        }
         this.updateProgressUI();
       });
     }
@@ -3831,6 +4255,7 @@ function initApp() {
       if (index < 0 || index >= this.tracks.length) return;
       this.currentIndex = index;
       const track = this.tracks[index];
+      track.currentLoopCount = 0;
 
       if (applyPresetNow) {
         this.applyVisuals(track);
@@ -3845,6 +4270,9 @@ function initApp() {
         this.audio.mode = 'inverno';
         this.audio.currentFileLabel = track.title.toUpperCase();
         try {
+          if (track.loopStart > 0) {
+            this.audio.audioElement.currentTime = track.loopStart;
+          }
           await this.audio.audioElement.play();
           this.audio.isPlaying = true;
         } catch (err) {
@@ -3860,6 +4288,9 @@ function initApp() {
         this.audio.mode = 'file';
         this.audio.currentFileLabel = track.title.toUpperCase();
         try {
+          if (track.loopStart > 0) {
+            this.audio.audioElement.currentTime = track.loopStart;
+          }
           await this.audio.audioElement.play();
           this.audio.isPlaying = true;
         } catch (err) {
@@ -3976,6 +4407,11 @@ function initApp() {
           type: 'file',
           file: file,
           src: URL.createObjectURL(file),
+          tags: [],
+          loopStart: 0,
+          loopEnd: 0,
+          loopEnabled: true,
+          maxLoops: 0,
           likes: 0,
           preset: {
             scenery: currentScenery,
@@ -4065,17 +4501,25 @@ function initApp() {
 
       const cur = el.currentTime || 0;
       const dur = el.duration || 1;
-      const pct = Math.min(100, Math.max(0, (cur / dur) * 100));
+      const start = curTrack ? (curTrack.loopStart || 0) : 0;
+      const end = curTrack ? (curTrack.loopEnd || 0) : 0;
 
-      const formatTime = (sec) => {
-        const m = Math.floor(sec / 60);
-        const s = Math.floor(sec % 60);
-        return `${m}:${s < 10 ? '0' : ''}${s}`;
-      };
+      if (end > start) {
+        // Modo trecho ativo
+        const span = end - start;
+        const currentWithin = Math.max(0, Math.min(span, cur - start));
+        const pct = Math.min(100, Math.max(0, (currentWithin / span) * 100));
+        const loopsStr = curTrack.maxLoops > 0 ? ` (${curTrack.currentLoopCount || 1}/${curTrack.maxLoops}x)` : ' (loop)';
 
-      if (curEl) curEl.textContent = formatTime(cur);
-      if (totEl) totEl.textContent = formatTime(dur);
-      if (fillEl) fillEl.style.width = `${pct}%`;
+        if (curEl) curEl.textContent = formatSec(cur);
+        if (totEl) totEl.textContent = `${formatSec(end)}${loopsStr}`;
+        if (fillEl) fillEl.style.width = `${pct}%`;
+      } else {
+        const pct = Math.min(100, Math.max(0, (cur / dur) * 100));
+        if (curEl) curEl.textContent = formatSec(cur);
+        if (totEl) totEl.textContent = formatSec(dur);
+        if (fillEl) fillEl.style.width = `${pct}%`;
+      }
     }
 
     seek(ratio) {
@@ -4083,7 +4527,10 @@ function initApp() {
       if (!curTrack || curTrack.type === 'synth') return;
       const el = this.audio.audioElement;
       if (el && el.duration) {
-        el.currentTime = Math.max(0, Math.min(el.duration, ratio * el.duration));
+        const start = curTrack.loopStart || 0;
+        const end = (curTrack.loopEnd && curTrack.loopEnd > start) ? curTrack.loopEnd : el.duration;
+        const target = start + ratio * (end - start);
+        el.currentTime = Math.max(start, Math.min(end, target));
       }
     }
 
@@ -4093,32 +4540,38 @@ function initApp() {
 
       const titleEl = document.getElementById('radio-track-title');
       const artistEl = document.getElementById('radio-track-artist');
+      const tagsEl = document.getElementById('radio-track-tags');
       const playIcon = document.getElementById('radio-play-icon');
       const playLabel = document.getElementById('radio-play-label');
       const likeCountEl = document.getElementById('radio-like-count');
       const badgeEl = document.getElementById('track-preset-badge');
       const modeLabel = document.getElementById('radio-mode-label');
-      const modeIcon = document.getElementById('radio-mode-icon');
       const topBadge = document.getElementById('top-playlist-badge');
       const btmBadge = document.getElementById('radio-playlist-badge');
 
-      if (titleEl) titleEl.textContent = curTrack.title;
-      if (artistEl) artistEl.textContent = `${curTrack.artist} // ${curTrack.bpm} BPM`;
+      if (titleEl) {
+        titleEl.textContent = curTrack.title;
+        titleEl.title = curTrack.title;
+      }
+      if (artistEl) artistEl.textContent = `${curTrack.artist} · ${curTrack.bpm} BPM`;
+      if (tagsEl) {
+        const tagsHtml = (curTrack.tags || [])
+          .slice(0, 3)
+          .map((t) => `<span class="chip">${escapeHtml(t)}</span>`)
+          .join('');
+        const loopTagHtml = (curTrack.loopEnd > curTrack.loopStart)
+          ? `<span class="loop-tag">✂ ${formatSec(curTrack.loopStart)}→${formatSec(curTrack.loopEnd)}</span>`
+          : '';
+        tagsEl.innerHTML = loopTagHtml + tagsHtml;
+      }
       if (likeCountEl) likeCountEl.textContent = curTrack.likes || 0;
 
-      if (this.audio.isPlaying) {
-        if (playIcon) playIcon.textContent = '⏸';
-        if (playLabel) playLabel.textContent = 'PAUSAR';
-      } else {
-        if (playIcon) playIcon.textContent = '▶';
-        if (playLabel) playLabel.textContent = 'TOCAR';
-      }
+      const playing = this.audio.isPlaying;
+      if (playIcon) playIcon.innerHTML = playing ? ICON_PAUSE : ICON_PLAY;
+      if (playLabel) playLabel.textContent = playing ? 'Pausar' : 'Tocar';
 
       if (modeLabel) {
-        modeLabel.textContent = this.mode === 'preset' ? 'Preset da Faixa' : 'Auto DJ (Shuffle)';
-      }
-      if (modeIcon) {
-        modeIcon.textContent = this.mode === 'preset' ? '🎛️' : '🎲';
+        modeLabel.textContent = this.mode === 'preset' ? 'Preset da faixa' : 'Visual aleatório';
       }
 
       if (topBadge) topBadge.textContent = this.tracks.length;
@@ -4126,8 +4579,225 @@ function initApp() {
 
       if (badgeEl && curTrack.preset) {
         const p = curTrack.preset;
-        badgeEl.textContent = `PRESET: ${p.scenery.toUpperCase()} // ${p.palette.toUpperCase()} // ${p.sketch.toUpperCase()}`;
+        badgeEl.textContent = `PRESET ${p.scenery} / ${p.palette} / ${p.sketch}`.toUpperCase();
       }
+    }
+
+    renderTagFilter() {
+      const bar = document.getElementById('playlist-tag-filter');
+      if (!bar) return;
+      const all = this.getAllTags();
+      bar.classList.toggle('hidden', all.length === 0);
+      bar.innerHTML = [
+        `<button class="chip ${!this.tagFilter ? 'is-on' : ''}" data-filter-tag="">todas</button>`,
+        ...all.map(([tag, n]) =>
+          `<button class="chip ${this.tagFilter === tag ? 'is-on' : ''}" data-filter-tag="${escapeHtml(tag)}">${escapeHtml(tag)} <span style="opacity:.5">${n}</span></button>`
+        )
+      ].join('');
+      bar.querySelectorAll('[data-filter-tag]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const tag = btn.getAttribute('data-filter-tag') || null;
+          this.tagFilter = this.tagFilter === tag ? null : tag;
+          this.renderPlaylistDrawer();
+        });
+      });
+    }
+
+    renderEditPanel(track) {
+      const d = this.editDraft;
+      const suggestions = this.getAllTags()
+        .map(([t]) => t)
+        .filter((t) => !d.tags.includes(t))
+        .slice(0, 10);
+
+      const startStr = formatSec(d.loopStart || 0);
+      const endStr = d.loopEnd > 0 ? formatSec(d.loopEnd) : '';
+
+      return `
+        <div class="track-edit">
+          <label class="label">Nome</label>
+          <input class="field edit-title" maxlength="80" value="${escapeHtml(d.title)}" placeholder="Nome do beat" />
+
+          <label class="label" style="margin-top:4px">Tags</label>
+          <div class="tag-input">
+            ${d.tags.map((t) => `
+              <span class="chip">${escapeHtml(t)}<span class="chip-x" data-remove-tag="${escapeHtml(t)}" title="Remover tag">&times;</span></span>
+            `).join('')}
+            <input class="edit-tag-input" value="${escapeHtml(d.pending)}" placeholder="${d.tags.length ? 'adicionar…' : 'ex: trap, sombrio, 140bpm'}" />
+          </div>
+          ${suggestions.length ? `
+            <div class="suggest">
+              <span class="label" style="margin-right:2px">usadas</span>
+              ${suggestions.map((t) => `<button class="chip" data-add-tag="${escapeHtml(t)}">+ ${escapeHtml(t)}</button>`).join('')}
+            </div>
+          ` : ''}
+
+          <!-- Controles de Loop & Trecho -->
+          <div class="loop-box" style="margin-top:6px">
+            <div class="flex items-center justify-between">
+              <span class="label" style="color:var(--text)">Trecho &amp; Duração do Loop</span>
+              <label class="flex items-center gap-1.5 cursor-pointer" style="font-size:11px">
+                <input type="checkbox" class="edit-loop-enabled" ${d.loopEnabled ? 'checked' : ''} />
+                <span>Repetir trecho</span>
+              </label>
+            </div>
+
+            <div class="loop-row" style="margin-top:2px">
+              <div>
+                <span class="label" style="font-size:9px">Início (MM:SS)</span>
+                <div class="time-field" style="margin-top:2px">
+                  <input class="field edit-loop-start" value="${escapeHtml(startStr)}" placeholder="0:00" />
+                  <button type="button" class="btn btn-icon edit-get-current-start" title="Usar tempo atual da música" style="height:26px; width:26px">⏱</button>
+                </div>
+              </div>
+              <div>
+                <span class="label" style="font-size:9px">Fim / Corte (MM:SS)</span>
+                <div class="time-field" style="margin-top:2px">
+                  <input class="field edit-loop-end" value="${escapeHtml(endStr)}" placeholder="Fim do áudio" />
+                  <button type="button" class="btn btn-icon edit-get-current-end" title="Usar tempo atual da música" style="height:26px; width:26px">⏱</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between" style="margin-top:4px">
+              <span class="label" style="font-size:9px">Alongar / Repetições:</span>
+              <div class="flex items-center gap-1">
+                ${[0, 2, 4, 8, 16].map((num) => `
+                  <button type="button" class="chip ${d.maxLoops === num ? 'is-on' : ''}" data-set-loops="${num}">
+                    ${num === 0 ? 'Infinito' : num + 'x'}
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+
+          <div class="row-actions">
+            <span class="hint">Enter ou vírgula adiciona a tag</span>
+            <div class="flex items-center gap-3">
+              <button class="link edit-cancel">Cancelar</button>
+              <button class="btn btn-accent edit-save">Salvar</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    bindEditPanel(card) {
+      const d = this.editDraft;
+      const titleInput = card.querySelector('.edit-title');
+      const tagInput = card.querySelector('.edit-tag-input');
+      const loopStartInput = card.querySelector('.edit-loop-start');
+      const loopEndInput = card.querySelector('.edit-loop-end');
+      const loopEnabledInput = card.querySelector('.edit-loop-enabled');
+
+      const refocusTags = () => {
+        this.renderPlaylistDrawer();
+        const el = document.querySelector('#playlist-items-container .edit-tag-input');
+        if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+      };
+      const addTag = (raw) => {
+        const tag = normalizeTag(raw);
+        d.pending = '';
+        if (tag && !d.tags.includes(tag)) d.tags.push(tag);
+        refocusTags();
+      };
+
+      // Keep keystrokes inside the editor (Esc would otherwise close the drawer)
+      card.querySelector('.track-edit').addEventListener('keydown', (e) => e.stopPropagation());
+
+      titleInput.addEventListener('input', () => { d.title = titleInput.value; });
+      titleInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); this.commitEditing(); }
+        if (e.key === 'Escape') { e.preventDefault(); this.cancelEditing(); }
+      });
+
+      tagInput.addEventListener('input', () => {
+        if (tagInput.value.includes(',')) {
+          const parts = tagInput.value.split(',');
+          d.pending = parts.pop();
+          parts.forEach((p) => { const t = normalizeTag(p); if (t && !d.tags.includes(t)) d.tags.push(t); });
+          refocusTags();
+        } else {
+          d.pending = tagInput.value;
+        }
+      });
+      tagInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (tagInput.value.trim()) addTag(tagInput.value);
+          else this.commitEditing();
+        } else if (e.key === 'Backspace' && !tagInput.value && d.tags.length) {
+          d.tags.pop();
+          refocusTags();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          this.cancelEditing();
+        }
+      });
+
+      card.querySelector('.tag-input').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) tagInput.focus();
+      });
+      card.querySelectorAll('[data-remove-tag]').forEach((x) => {
+        x.addEventListener('click', () => {
+          const tag = x.getAttribute('data-remove-tag');
+          d.tags = d.tags.filter((t) => t !== tag);
+          refocusTags();
+        });
+      });
+      card.querySelectorAll('[data-add-tag]').forEach((b) => {
+        b.addEventListener('click', () => addTag(b.getAttribute('data-add-tag')));
+      });
+
+      if (loopStartInput) {
+        loopStartInput.addEventListener('change', () => {
+          d.loopStart = parseSec(loopStartInput.value);
+          loopStartInput.value = formatSec(d.loopStart);
+        });
+      }
+      if (loopEndInput) {
+        loopEndInput.addEventListener('change', () => {
+          d.loopEnd = parseSec(loopEndInput.value);
+          loopEndInput.value = d.loopEnd > 0 ? formatSec(d.loopEnd) : '';
+        });
+      }
+      if (loopEnabledInput) {
+        loopEnabledInput.addEventListener('change', () => {
+          d.loopEnabled = loopEnabledInput.checked;
+        });
+      }
+
+      const btnCurrentStart = card.querySelector('.edit-get-current-start');
+      if (btnCurrentStart) {
+        btnCurrentStart.addEventListener('click', () => {
+          const cur = this.audio.audioElement ? this.audio.audioElement.currentTime : 0;
+          d.loopStart = Math.floor(cur);
+          if (loopStartInput) loopStartInput.value = formatSec(d.loopStart);
+          showToast(`Início do trecho definido em ${formatSec(d.loopStart)}.`);
+        });
+      }
+
+      const btnCurrentEnd = card.querySelector('.edit-get-current-end');
+      if (btnCurrentEnd) {
+        btnCurrentEnd.addEventListener('click', () => {
+          const cur = this.audio.audioElement ? this.audio.audioElement.currentTime : 0;
+          d.loopEnd = Math.ceil(cur);
+          if (loopEndInput) loopEndInput.value = formatSec(d.loopEnd);
+          showToast(`Fim do trecho definido em ${formatSec(d.loopEnd)}.`);
+        });
+      }
+
+      card.querySelectorAll('[data-set-loops]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          d.maxLoops = parseInt(btn.getAttribute('data-set-loops'), 10) || 0;
+          card.querySelectorAll('[data-set-loops]').forEach((b) => {
+            b.classList.toggle('is-on', parseInt(b.getAttribute('data-set-loops'), 10) === d.maxLoops);
+          });
+        });
+      });
+
+      card.querySelector('.edit-cancel').addEventListener('click', () => this.cancelEditing());
+      card.querySelector('.edit-save').addEventListener('click', () => this.commitEditing());
     }
 
     renderPlaylistDrawer() {
@@ -4135,64 +4805,65 @@ function initApp() {
       if (!container) return;
 
       const isAdmin = userRole === 'admin';
-      container.innerHTML = '';
-      this.tracks.forEach((track, idx) => {
-        const isActive = idx === this.currentIndex;
-        const card = document.createElement('div');
-        card.className = `p-3 rounded-xl border transition-all cursor-pointer flex flex-col gap-2 ${
-          isActive
-            ? 'border-orange-500 bg-orange-950/30 shadow-lg shadow-orange-950/20'
-            : 'border-zinc-800/80 bg-zinc-900/60 hover:border-zinc-700 hover:bg-zinc-900'
-        }`;
+      if (!isAdmin && this.editingId) {
+        this.editingId = null;
+        this.editDraft = null;
+      }
 
+      this.renderTagFilter();
+      container.innerHTML = '';
+
+      const visible = this.tracks
+        .map((track, idx) => ({ track, idx }))
+        .filter(({ track }) => !this.tagFilter || (track.tags || []).includes(this.tagFilter));
+
+      if (visible.length === 0) {
+        container.innerHTML = `<div class="empty">Nenhum beat com a tag “${escapeHtml(this.tagFilter)}”.</div>`;
+        return;
+      }
+
+      visible.forEach(({ track, idx }) => {
+        const isActive = idx === this.currentIndex;
+        const isPlaying = isActive && this.audio.isPlaying;
+        const isEditing = isAdmin && this.editingId === track.id;
         const p = track.preset || { scenery: 'street', palette: 'hybrid', sketch: 'devil' };
+        const num = String(idx + 1).padStart(2, '0');
+
+        const card = document.createElement('div');
+        card.className = `track${isActive ? ' is-active' : ''}`;
+
+        const hasTrim = track.loopEnd > track.loopStart;
+        const trimLabel = hasTrim
+          ? `<span class="loop-tag" title="Trecho configurado">✂ ${formatSec(track.loopStart)}→${formatSec(track.loopEnd)}${track.maxLoops > 0 ? ' · ' + track.maxLoops + 'x' : ' · loop'}</span>`
+          : '';
 
         card.innerHTML = `
-          <div class="flex items-center justify-between gap-2">
-            <div class="flex items-center gap-2 min-w-0">
-              <button class="track-play-btn w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
-                isActive && this.audio.isPlaying
-                  ? 'bg-orange-500 text-black font-bold animate-pulse'
-                  : 'bg-zinc-800 text-zinc-300 hover:bg-orange-600 hover:text-white'
-              }">
-                ${isActive && this.audio.isPlaying ? '⏸' : '▶'}
-              </button>
-              <div class="flex flex-col min-w-0">
-                <span class="text-xs font-semibold text-zinc-100 truncate ${isActive ? 'text-orange-400 font-bold' : ''}">
-                  ${idx + 1}. ${track.title}
-                </span>
-                <span class="text-[10px] font-mono text-zinc-400 truncate flex items-center gap-1.5">
-                  <span>${track.artist} • ${track.bpm} BPM</span>
-                  <span class="text-[9px] px-1 py-0.2 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 font-medium">SEM IA</span>
-                </span>
-              </div>
-            </div>
+          <button class="track-num track-play-btn" title="${isPlaying ? 'Pausar' : 'Tocar'}">
+            <span class="n">${isPlaying ? '<span class="eq"><i></i><i></i><i></i></span>' : num}</span>
+            <span class="ico">${isPlaying ? ICON_PAUSE : ICON_PLAY}</span>
+          </button>
+          <div class="track-title" title="${escapeHtml(track.title)}">${escapeHtml(track.title)}</div>
+          <button class="track-like" title="Curtir">${ICON_HEART}<span>${track.likes || 0}</span></button>
 
-            <button class="track-like-btn flex items-center gap-1 px-2 py-1 rounded-md bg-zinc-800/60 hover:bg-pink-950/60 hover:text-pink-300 text-zinc-400 text-[11px] font-mono border border-zinc-700/60 transition" title="Curtir beat">
-              <span class="text-pink-500">♥</span>
-              <span>${track.likes || 0}</span>
-            </button>
+          <div class="track-meta">
+            <span>${track.bpm} BPM</span>
+            ${trimLabel}
+            ${(track.tags || []).length ? '<span class="sep">/</span>' : ''}
+            ${(track.tags || []).map((t) =>
+              `<button class="chip ${this.tagFilter === t ? 'is-on' : ''}" data-chip-tag="${escapeHtml(t)}">${escapeHtml(t)}</button>`
+            ).join('')}
           </div>
 
-          <div class="flex flex-wrap items-center justify-between gap-1.5 pt-1 border-t border-zinc-800/60 text-[9px] font-mono">
-            <div class="flex flex-wrap items-center gap-1">
-              <span class="px-1.5 py-0.5 rounded bg-zinc-800 text-cyan-300">Cenário: ${p.scenery}</span>
-              <span class="px-1.5 py-0.5 rounded bg-zinc-800 text-orange-300">Skin: ${p.palette}</span>
-              <span class="px-1.5 py-0.5 rounded bg-zinc-800 text-pink-300">Sketch: ${p.sketch}</span>
+          ${isAdmin && !isEditing ? `
+            <div class="track-preset">${escapeHtml(p.scenery)} / ${escapeHtml(p.palette)} / ${escapeHtml(p.sketch)}</div>
+            <div class="track-actions">
+              <button class="link track-edit-btn">Editar</button>
+              <button class="link track-save-preset-btn" title="Gravar o visual atual da tela neste beat">Gravar visual</button>
+              ${track.type === 'file' ? '<button class="link link-danger track-del-btn">Remover</button>' : ''}
             </div>
-            ${isAdmin ? `
-              <div class="flex items-center gap-1 shrink-0">
-                <button class="track-save-preset-btn px-1.5 py-0.5 rounded bg-cyan-950/70 border border-cyan-700/70 text-cyan-300 hover:bg-cyan-800 hover:text-white transition" title="Gravar visual atual da tela neste beat">
-                  💾 Salvar Visual
-                </button>
-                ${track.type === 'file' ? `
-                  <button class="track-del-btn px-1.5 py-0.5 rounded bg-red-950/70 border border-red-700/70 text-red-300 hover:bg-red-800 hover:text-white transition" title="Excluir beat">
-                    ✕
-                  </button>
-                ` : ''}
-              </div>
-            ` : ''}
-          </div>
+          ` : ''}
+
+          ${isEditing ? this.renderEditPanel(track) : ''}
         `;
 
         card.querySelector('.track-play-btn').addEventListener('click', (e) => {
@@ -4204,46 +4875,57 @@ function initApp() {
           }
         });
 
-        card.addEventListener('click', () => {
+        card.addEventListener('click', (e) => {
+          if (e.target.closest('.track-edit, .track-actions, .track-meta button')) return;
           if (!isActive) {
             this.playTrack(idx, true);
           }
         });
 
-        card.querySelector('.track-like-btn').addEventListener('click', (e) => {
+        card.querySelector('.track-like').addEventListener('click', (e) => {
           e.stopPropagation();
           this.likeTrack(idx);
         });
 
-        if (isAdmin) {
-          const saveBtn = card.querySelector('.track-save-preset-btn');
-          if (saveBtn) {
-            saveBtn.addEventListener('click', (e) => {
-              e.stopPropagation();
-              this.saveVisualToTrack(idx);
-              const toast = document.createElement('div');
-              toast.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 px-4 py-2 bg-cyan-900 border border-cyan-400 text-cyan-100 rounded-lg text-xs font-mono z-50 shadow-2xl';
-              toast.textContent = `Preset visual gravado no Beat ${idx + 1}!`;
-              document.body.appendChild(toast);
-              setTimeout(() => toast.remove(), 2000);
-            });
-          }
+        card.querySelectorAll('[data-chip-tag]').forEach((chip) => {
+          chip.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const tag = chip.getAttribute('data-chip-tag');
+            this.tagFilter = this.tagFilter === tag ? null : tag;
+            this.renderPlaylistDrawer();
+          });
+        });
+
+        if (isAdmin && !isEditing) {
+          card.querySelector('.track-edit-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.startEditing(idx);
+          });
+
+          card.querySelector('.track-save-preset-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.saveVisualToTrack(idx);
+            showToast(`Visual gravado em “${track.title}”.`);
+          });
 
           const delBtn = card.querySelector('.track-del-btn');
           if (delBtn) {
             delBtn.addEventListener('click', (e) => {
               e.stopPropagation();
-              if (confirm(`Remover o beat "${track.title}" da playlist?`)) {
+              if (confirm(`Remover "${track.title}" da lista?`)) {
                 this.removeTrack(idx);
               }
             });
           }
         }
 
+        if (isEditing) this.bindEditPanel(card);
+
         container.appendChild(card);
       });
     }
   }
+
 
   // ==========================================================================
   // SUPER RESTRICTED DEV AUTHENTICATION & ROLE MANAGER (JC_MORAL)
@@ -4262,6 +4944,7 @@ function initApp() {
   let userRole = isDevAuthenticated ? 'admin' : 'visitor';
 
   const radio = new RadioPlaylistManager(audio);
+  const watermark = new VoiceWatermarkEngine(audio);
 
   function updateRoleUI() {
     const isProd = isDevAuthenticated && userRole === 'admin';
@@ -4293,6 +4976,9 @@ function initApp() {
     if (radio) {
       radio.renderPlaylistDrawer();
       radio.syncUI();
+    }
+    if (typeof watermark !== 'undefined' && watermark) {
+      watermark.syncUI();
     }
   }
 
@@ -4518,6 +5204,31 @@ function initApp() {
       radio.seek(ratio);
     });
   }
+
+  // Watermark (ElevenLabs Tag) Controls Binding
+  const btnWatermarkTop = document.getElementById('btn-watermark-top');
+  const btnToggleWatermark = document.getElementById('btn-toggle-watermark');
+  const btnTestWatermark = document.getElementById('btn-test-watermark');
+
+  if (btnWatermarkTop) btnWatermarkTop.addEventListener('click', () => watermark.toggle());
+  if (btnToggleWatermark) btnToggleWatermark.addEventListener('click', () => watermark.toggle());
+  if (btnTestWatermark) btnTestWatermark.addEventListener('click', () => watermark.playTag());
+
+  document.querySelectorAll('[data-watermark-interval]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const sec = btn.getAttribute('data-watermark-interval');
+      watermark.setInterval(sec);
+    });
+  });
+
+  document.querySelectorAll('[data-watermark-effect]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const eff = btn.getAttribute('data-watermark-effect');
+      watermark.setEffect(eff);
+    });
+  });
+
+  watermark.syncUI();
 
   // Playlist Drawer Open/Close
   const playlistDrawer = document.getElementById('playlist-drawer');
