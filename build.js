@@ -548,6 +548,11 @@ const standaloneHtml = `<!DOCTYPE html>
       </button>
     </div>
 
+    <div class="visitor-only section" style="padding:10px 18px; border-bottom:1px solid var(--line); font-size:11px; color:var(--muted); display:flex; justify-content:space-between; align-items:center;">
+      <span>Modo ouvinte</span>
+      <button type="button" class="link btn-open-dev-from-playlist" style="color:var(--accent)">Entrar como Produtor</button>
+    </div>
+
     <div class="admin-only hidden section" style="padding-top:14px; padding-bottom:14px">
       <div class="flex gap-1.5">
         <button id="btn-save-current-preset" class="btn flex-1 justify-center" title="Gravar o visual atual da tela no beat que está tocando">
@@ -558,7 +563,10 @@ const standaloneHtml = `<!DOCTYPE html>
           <input id="playlist-file-input" type="file" accept="audio/*" multiple class="hidden" />
         </label>
       </div>
-      <p style="font-size:11px">Arraste arquivos de áudio para a tela para adicionar. Clique em <strong>Editar</strong> para renomear e colocar tags.</p>
+      <div class="flex items-center justify-between" style="margin-top:8px">
+        <span style="font-size:11px; color:var(--dim)">Clique em Editar ou Remover para gerenciar faixas.</span>
+        <button id="btn-restore-default-beats" type="button" class="link hidden" style="font-size:11px; color:var(--accent)" title="Restaurar faixas originais">Restaurar originais</button>
+      </div>
     </div>
 
     <div id="playlist-tag-filter" class="tag-filter hidden"></div>

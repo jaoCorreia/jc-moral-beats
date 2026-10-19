@@ -3986,15 +3986,8 @@ class VoiceWatermarkEngine {
   }
 
   class RadioPlaylistManager {
-    constructor(audioEngine) {
-      this.audio = audioEngine;
-      this.mode = localStorage.getItem('ldr_radio_mode') || 'preset'; // 'preset' | 'auto'
-      this.currentIndex = 0;
-      this.tagFilter = null;     // active tag filter in the playlist drawer
-      this.editingId = null;     // id of the track being edited (rename + tags + loop)
-      this.editDraft = null;     // { title, tags, loopStart, loopEnd, loopEnabled, maxLoops, pending }
-
-      this.tracks = [
+    getDefaultTracks() {
+      return [
         {
           id: 'inverno',
           title: 'Inverno',
@@ -4080,6 +4073,54 @@ class VoiceWatermarkEngine {
           }
         }
       ];
+    }
+
+    getRemovedTrackIds() {
+      try {
+        return JSON.parse(localStorage.getItem('ldr_removed_track_ids') || '[]');
+      } catch (e) {
+        return [];
+      }
+    }
+
+    restoreDefaults() {
+      localStorage.removeItem('ldr_removed_track_ids');
+      const defaults = this.getDefaultTracks();
+      const currentIds = new Set(this.tracks.map((t) => t.id));
+      defaults.forEach((def) => {
+        if (!currentIds.has(def.id)) {
+          this.loadMeta(def);
+          this.tracks.push(def);
+        }
+      });
+      this.renderPlaylistDrawer();
+      this.syncUI();
+      if (typeof showToast === 'function') {
+        showToast('Beats de fábrica restaurados.');
+      }
+    }
+
+    constructor(audioEngine) {
+      this.audio = audioEngine;
+      this.mode = localStorage.getItem('ldr_radio_mode') || 'preset'; // 'preset' | 'auto'
+      this.currentIndex = 0;
+      this.tagFilter = null;     // active tag filter in the playlist drawer
+      this.editingId = null;     // id of the track being edited (rename + tags + loop)
+      this.editDraft = null;     // { title, tags, loopStart, loopEnd, loopEnabled, maxLoops, pending }
+
+      this.tracks = this.getDefaultTracks();
+
+      // Filter out tracks deleted by user
+      const removedIds = this.getRemovedTrackIds();
+      if (removedIds.length > 0) {
+        const remaining = this.tracks.filter((t) => !removedIds.includes(t.id));
+        if (remaining.length > 0) {
+          this.tracks = remaining;
+        } else {
+          localStorage.removeItem('ldr_removed_track_ids');
+          this.tracks = this.getDefaultTracks();
+        }
+      }
 
       // Load user saved presets + renamed titles / tags / loop configs
       this.tracks.forEach((t) => {
@@ -4152,6 +4193,7 @@ class VoiceWatermarkEngine {
       if (!track) return;
       this.editingId = track.id;
       this.editDraft = {
+        id: track.id,
         title: track.title,
         tags: [...(track.tags || [])],
         loopStart: track.loopStart || 0,
@@ -4380,16 +4422,45 @@ class VoiceWatermarkEngine {
         alert('Você precisa manter pelo menos 1 beat na playlist!');
         return;
       }
+
+      const trackToRemove = this.tracks[index];
       const isCurrent = index === this.currentIndex;
+
+      if (trackToRemove && trackToRemove.id) {
+        try {
+          const removed = this.getRemovedTrackIds();
+          if (!removed.includes(trackToRemove.id)) {
+            removed.push(trackToRemove.id);
+            localStorage.setItem('ldr_removed_track_ids', JSON.stringify(removed));
+          }
+        } catch (e) {
+          console.error('Erro ao salvar remoção:', e);
+        }
+      }
+
+      if (this.editingId === trackToRemove.id) {
+        this.editingId = null;
+        this.editDraft = null;
+      }
+
       this.tracks.splice(index, 1);
+
       if (isCurrent) {
         this.currentIndex = Math.min(this.currentIndex, this.tracks.length - 1);
         this.playTrack(this.currentIndex, true);
       } else if (index < this.currentIndex) {
         this.currentIndex--;
       }
+
+      if (this.tagFilter && !this.getAllTags().some(([t]) => t === this.tagFilter)) {
+        this.tagFilter = null;
+      }
+
       this.renderPlaylistDrawer();
       this.syncUI();
+      if (typeof showToast === 'function') {
+        showToast(`Beat “${trackToRemove.title}” removido.`);
+      }
     }
 
     addFiles(files) {
@@ -4672,10 +4743,10 @@ class VoiceWatermarkEngine {
           </div>
 
           <div class="row-actions">
-            <span class="hint">Enter ou vírgula adiciona a tag</span>
-            <div class="flex items-center gap-3">
-              <button class="link edit-cancel">Cancelar</button>
-              <button class="btn btn-accent edit-save">Salvar</button>
+            <button type="button" class="link link-danger edit-delete-btn" title="Excluir permanentemente este beat">Excluir beat</button>
+            <div class="flex items-center gap-3" style="margin-left:auto">
+              <button type="button" class="link edit-cancel">Cancelar</button>
+              <button type="button" class="btn btn-accent edit-save">Salvar</button>
             </div>
           </div>
         </div>
@@ -4798,6 +4869,17 @@ class VoiceWatermarkEngine {
 
       card.querySelector('.edit-cancel').addEventListener('click', () => this.cancelEditing());
       card.querySelector('.edit-save').addEventListener('click', () => this.commitEditing());
+
+      const delBtn = card.querySelector('.edit-delete-btn');
+      if (delBtn) {
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const idx = this.tracks.findIndex((t) => t.id === d.id);
+          if (idx >= 0 && confirm(`Excluir permanentemente "${d.title}"?`)) {
+            this.removeTrack(idx);
+          }
+        });
+      }
     }
 
     renderPlaylistDrawer() {
@@ -4859,7 +4941,7 @@ class VoiceWatermarkEngine {
             <div class="track-actions">
               <button class="link track-edit-btn">Editar</button>
               <button class="link track-save-preset-btn" title="Gravar o visual atual da tela neste beat">Gravar visual</button>
-              ${track.type === 'file' ? '<button class="link link-danger track-del-btn">Remover</button>' : ''}
+              <button class="link link-danger track-del-btn" title="Remover este beat da playlist">Remover</button>
             </div>
           ` : ''}
 
@@ -4923,6 +5005,13 @@ class VoiceWatermarkEngine {
 
         container.appendChild(card);
       });
+
+      const restoreBtn = document.getElementById('btn-restore-default-beats');
+      if (restoreBtn) {
+        const removed = this.getRemovedTrackIds();
+        restoreBtn.classList.toggle('hidden', !isAdmin || removed.length === 0);
+        restoreBtn.textContent = `Restaurar originais (${removed.length})`;
+      }
     }
   }
 
@@ -5197,6 +5286,20 @@ class VoiceWatermarkEngine {
       if (e.target.files) radio.addFiles(e.target.files);
     });
   }
+  const restoreDefaultBeatsBtn = document.getElementById('btn-restore-default-beats');
+  if (restoreDefaultBeatsBtn) {
+    restoreDefaultBeatsBtn.addEventListener('click', () => {
+      if (confirm('Restaurar todos os beats originais que foram removidos?')) {
+        radio.restoreDefaults();
+      }
+    });
+  }
+
+  document.querySelectorAll('.btn-open-dev-from-playlist').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      openDevModal();
+    });
+  });
   if (radioProgressBg) {
     radioProgressBg.addEventListener('click', (e) => {
       const rect = radioProgressBg.getBoundingClientRect();
