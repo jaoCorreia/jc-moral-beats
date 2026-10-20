@@ -249,9 +249,9 @@ class AudioReactiveEngine {
       this.isPlaying = true;
       return true;
     } catch (e) {
-      console.warn('Fallback to synth if inverno.mp3 not reachable:', e);
-      this.startSynth();
-      return true;
+      console.warn('Audio waiting for user gesture or paused:', e);
+      this.isPlaying = false;
+      return false;
     }
   }
 
@@ -261,16 +261,12 @@ class AudioReactiveEngine {
       this.stop();
       return false;
     } else {
-      if (this.mode === 'inverno' || this.mode === 'file') {
-        this.ensureAudioElement();
-        if (!this.audioElement.src) {
-          this.playInverno();
-        } else {
-          this.audioElement.play();
-          this.isPlaying = true;
-        }
+      this.ensureAudioElement();
+      if (!this.audioElement.src) {
+        this.playInverno();
       } else {
-        this.startSynth();
+        this.audioElement.play().catch((err) => console.warn('Play error:', err));
+        this.isPlaying = true;
       }
       return true;
     }
@@ -1767,7 +1763,7 @@ function initApp() {
   // ==========================================================================
   // 5D. INTERACTIVE HEAD ACCESSORIES (Boné, Chapéu de Cowboy, Tranças Predador)
   // ==========================================================================
-  let currentAccessory = 'cap'; // 'none' | 'cap' | 'cowboy' | 'predator'
+  let currentAccessory = 'none'; // 'none' | 'cap' | 'cowboy' | 'predator'
 
   // --- ACCESSORY 1: BONÉ CYBER STREETWEAR (Snapback Cap) ---
   const capGroup = new THREE.Group();
@@ -2045,6 +2041,7 @@ function initApp() {
       btn.classList.toggle('active-pill', isSelected);
     });
   }
+  applyAccessory('none');
 
   function applyScenery(key) {
     currentScenery = key;
@@ -3986,23 +3983,16 @@ class VoiceWatermarkEngine {
   }
 
   class RadioPlaylistManager {
-    constructor(audioEngine) {
-      this.audio = audioEngine;
-      this.mode = localStorage.getItem('ldr_radio_mode') || 'preset'; // 'preset' | 'auto'
-      this.currentIndex = 0;
-      this.tagFilter = null;     // active tag filter in the playlist drawer
-      this.editingId = null;     // id of the track being edited (rename + tags + loop)
-      this.editDraft = null;     // { title, tags, loopStart, loopEnd, loopEnabled, maxLoops, pending }
-
-      this.tracks = [
+    getDefaultTracks() {
+      return [
         {
           id: 'inverno',
-          title: 'Inverno',
+          title: 'Inverno // Lofi Chill',
           artist: 'JC_MORAL',
           bpm: 82,
           type: 'audio',
           src: '/inverno.mp3',
-          tags: ['lo-fi', 'chill'],
+          tags: ['lo-fi', 'chill', 'autoral'],
           loopStart: 0,
           loopEnd: 0,
           loopEnabled: true,
@@ -4017,18 +4007,18 @@ class VoiceWatermarkEngine {
           }
         },
         {
-          id: 'cyber-drift',
-          title: 'Cyber Drift',
+          id: 'moral-drill',
+          title: 'Moral Densidade // Cyber Drill',
           artist: 'JC_MORAL',
-          bpm: 82,
-          type: 'synth',
-          synthIndex: 0,
-          tags: ['synth', 'lo-fi'],
+          bpm: 88,
+          type: 'audio',
+          src: '/untitled-46.mp3',
+          tags: ['drill', 'cyber', 'autoral'],
           loopStart: 0,
           loopEnd: 0,
           loopEnabled: true,
           maxLoops: 0,
-          likes: parseInt(localStorage.getItem('ldr_likes_cyber-drift') || '28', 10),
+          likes: parseInt(localStorage.getItem('ldr_likes_moral-drill') || '58', 10),
           preset: {
             scenery: 'cybercode',
             palette: 'cytro',
@@ -4038,50 +4028,145 @@ class VoiceWatermarkEngine {
           }
         },
         {
-          id: 'zima-nebula',
-          title: 'Zima Nebula',
+          id: 'voz1-session',
+          title: 'Voz Sessions // Boombap 84',
           artist: 'JC_MORAL',
-          bpm: 72,
-          type: 'synth',
-          synthIndex: 1,
-          tags: ['ambient', 'synth'],
+          bpm: 84,
+          type: 'audio',
+          src: '/voz1.mp3',
+          tags: ['boombap', 'analog', 'autoral'],
           loopStart: 0,
           loopEnd: 0,
           loopEnabled: true,
           maxLoops: 0,
-          likes: parseInt(localStorage.getItem('ldr_likes_zima-nebula') || '56', 10),
+          likes: parseInt(localStorage.getItem('ldr_likes_voz1-session') || '64', 10),
           preset: {
             scenery: 'valley3d',
             palette: 'kvrc',
             accessory: 'cowboy',
             sketch: 'earcups',
-            intensity: 0.70
-          }
-        },
-        {
-          id: 'street-sk8',
-          title: 'Street Sk8 Anthem',
-          artist: 'JC_MORAL',
-          bpm: 88,
-          type: 'synth',
-          synthIndex: 0,
-          tags: ['drill'],
-          loopStart: 0,
-          loopEnd: 0,
-          loopEnabled: true,
-          maxLoops: 0,
-          likes: parseInt(localStorage.getItem('ldr_likes_street-sk8') || '73', 10),
-          preset: {
-            scenery: 'street',
-            palette: 'scratch',
-            accessory: 'predator',
-            sketch: 'devil',
-            intensity: 1.05
+            intensity: 0.85
           }
         }
       ];
+    }
 
-      // Load user saved presets + renamed titles / tags / loop configs
+    getRemovedTrackIds() {
+      try {
+        return JSON.parse(localStorage.getItem('ldr_removed_track_ids') || '[]');
+      } catch (e) {
+        return [];
+      }
+    }
+
+    restoreDefaults() {
+      localStorage.removeItem('ldr_removed_track_ids');
+      const defaults = this.getDefaultTracks();
+      const currentIds = new Set(this.tracks.map((t) => t.id));
+      defaults.forEach((def) => {
+        if (!currentIds.has(def.id)) {
+          this.loadMeta(def);
+          this.tracks.push(def);
+        }
+      });
+      this.renderPlaylistDrawer();
+      this.syncUI();
+      this.saveToServer();
+      if (typeof showToast === 'function') {
+        showToast('Beats de fábrica restaurados para todos.');
+      }
+    }
+
+    async loadFromServer() {
+      try {
+        const res = await fetch('/api/catalog');
+        if (res.ok) {
+          const serverCatalog = await res.json();
+          if (Array.isArray(serverCatalog) && serverCatalog.length > 0) {
+            this.tracks = serverCatalog;
+            if (this.currentIndex >= this.tracks.length) this.currentIndex = 0;
+            this.syncUI();
+            this.renderPlaylistDrawer();
+            if (this.mode === 'preset') {
+              this.applyVisuals(this.getCurrentTrack());
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar catálogo do servidor, mantendo local:', err);
+      }
+    }
+
+    async saveToServer() {
+      const token = localStorage.getItem('ldr_producer_token') || sessionStorage.getItem('ldr_producer_token');
+      if (!token) return;
+
+      try {
+        const payload = this.tracks.map((t) => ({
+          id: t.id,
+          title: t.title,
+          artist: t.artist || 'JC_MORAL',
+          bpm: t.bpm || 82,
+          type: t.type || 'audio',
+          synthIndex: typeof t.synthIndex === 'number' ? t.synthIndex : undefined,
+          src: t.src || '/inverno.mp3',
+          tags: t.tags || [],
+          loopStart: t.loopStart || 0,
+          loopEnd: t.loopEnd || 0,
+          loopEnabled: t.loopEnabled !== false,
+          maxLoops: t.maxLoops || 0,
+          likes: t.likes || 0,
+          preset: t.preset || {
+            scenery: 'street',
+            palette: 'hybrid',
+            accessory: 'none',
+            sketch: 'devil',
+            intensity: 0.75
+          }
+        }));
+
+        const res = await fetch('/api/catalog', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          showToast('Alterações salvas globalmente para todos os usuários! 🌐');
+        } else {
+          console.warn('Servidor respondeu com status:', res.status);
+        }
+      } catch (err) {
+        console.warn('Falha na conexão ao salvar catálogo no servidor:', err);
+      }
+    }
+
+    constructor(audioEngine) {
+      this.audio = audioEngine;
+      this.mode = localStorage.getItem('ldr_radio_mode') || 'preset'; // 'preset' | 'auto'
+      this.currentIndex = 0;
+      this.tagFilter = null;     // active tag filter in the playlist drawer
+      this.editingId = null;     // id of the track being edited (rename + tags + loop)
+      this.editDraft = null;     // { title, tags, loopStart, loopEnd, loopEnabled, maxLoops, pending }
+
+      this.tracks = this.getDefaultTracks();
+
+      // Filter out tracks deleted by user locally (offline fallback)
+      const removedIds = this.getRemovedTrackIds();
+      if (removedIds.length > 0) {
+        const remaining = this.tracks.filter((t) => !removedIds.includes(t.id));
+        if (remaining.length > 0) {
+          this.tracks = remaining;
+        } else {
+          localStorage.removeItem('ldr_removed_track_ids');
+          this.tracks = this.getDefaultTracks();
+        }
+      }
+
+      // Load user saved presets + renamed titles / tags / loop configs (offline fallback)
       this.tracks.forEach((t) => {
         const saved = localStorage.getItem('ldr_track_preset_' + t.id);
         if (saved) {
@@ -4093,6 +4178,95 @@ class VoiceWatermarkEngine {
       });
 
       this.initAudioHooks();
+      this.setupMediaSession();
+      this.loadFromServer();
+    }
+
+    setupMediaSession() {
+      if (!('mediaSession' in navigator)) return;
+
+      try {
+        navigator.mediaSession.setActionHandler('play', () => {
+          if (!this.audio.isPlaying) {
+            this.togglePlay();
+          }
+        });
+
+        navigator.mediaSession.setActionHandler('pause', () => {
+          if (this.audio.isPlaying) {
+            this.togglePlay();
+          }
+        });
+
+        navigator.mediaSession.setActionHandler('previoustrack', () => {
+          this.prev();
+        });
+
+        navigator.mediaSession.setActionHandler('nexttrack', () => {
+          this.next();
+        });
+
+        navigator.mediaSession.setActionHandler('seekto', (details) => {
+          if (typeof details.seekTime === 'number' && this.audio.audioElement) {
+            const el = this.audio.audioElement;
+            el.currentTime = Math.max(0, Math.min(details.seekTime, el.duration || details.seekTime));
+            this.updateProgressUI();
+          }
+        });
+
+        navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+          const skip = details.seekOffset || 10;
+          if (this.audio.audioElement) {
+            this.audio.audioElement.currentTime = Math.max(0, this.audio.audioElement.currentTime - skip);
+            this.updateProgressUI();
+          }
+        });
+
+        navigator.mediaSession.setActionHandler('seekforward', (details) => {
+          const skip = details.seekOffset || 10;
+          if (this.audio.audioElement && this.audio.audioElement.duration) {
+            this.audio.audioElement.currentTime = Math.min(this.audio.audioElement.duration, this.audio.audioElement.currentTime + skip);
+            this.updateProgressUI();
+          }
+        });
+
+        navigator.mediaSession.setActionHandler('stop', () => {
+          this.audio.stop();
+          this.syncUI();
+        });
+      } catch (err) {
+        console.warn('MediaSession handler setup warning:', err);
+      }
+    }
+
+    updateMediaSession(track) {
+      if (!('mediaSession' in navigator)) return;
+      if (!track) track = this.getCurrentTrack();
+      if (!track) return;
+
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: track.title,
+          artist: `${track.artist || 'JC_MORAL'} • 100% Autoral (Sem IA)`,
+          album: 'JC_MORAL // Sound Lab',
+          artwork: [
+            { src: '/favicon.ico', sizes: '64x64', type: 'image/x-icon' }
+          ]
+        });
+
+        navigator.mediaSession.playbackState = this.audio.isPlaying ? 'playing' : 'paused';
+
+        const el = this.audio.audioElement;
+        if (el && el.duration && !isNaN(el.duration) && 'setPositionState' in navigator.mediaSession) {
+          navigator.mediaSession.setPositionState({
+            duration: el.duration,
+            playbackRate: el.playbackRate || 1.0,
+            position: Math.max(0, Math.min(el.currentTime, el.duration))
+          });
+        }
+      } catch (e) {
+        console.warn('MediaSession metadata update warning:', e);
+      }
     }
 
     loadMeta(track) {
@@ -4152,6 +4326,7 @@ class VoiceWatermarkEngine {
       if (!track) return;
       this.editingId = track.id;
       this.editDraft = {
+        id: track.id,
         title: track.title,
         tags: [...(track.tags || [])],
         loopStart: track.loopStart || 0,
@@ -4175,6 +4350,18 @@ class VoiceWatermarkEngine {
       const index = this.tracks.findIndex((t) => t.id === this.editingId);
       const draft = this.editDraft;
       if (index < 0 || !draft) return this.cancelEditing();
+
+      // Read latest live values from DOM inputs if available
+      const activeCard = document.querySelector('#playlist-items-container .track-edit');
+      if (activeCard) {
+        const titleInput = activeCard.querySelector('.edit-title');
+        if (titleInput && titleInput.value.trim()) draft.title = titleInput.value.trim();
+        const startInput = activeCard.querySelector('.edit-loop-start');
+        if (startInput) draft.loopStart = parseSec(startInput.value);
+        const endInput = activeCard.querySelector('.edit-loop-end');
+        if (endInput) draft.loopEnd = parseSec(endInput.value);
+      }
+
       const tags = [...draft.tags];
       if (draft.pending) tags.push(draft.pending);
       if (!draft.title.trim()) {
@@ -4199,6 +4386,7 @@ class VoiceWatermarkEngine {
       this.editDraft = null;
       this.renderPlaylistDrawer();
       this.syncUI();
+      this.saveToServer();
       showToast('Beat atualizado.');
     }
 
@@ -4222,14 +4410,26 @@ class VoiceWatermarkEngine {
           return;
         }
 
-        if (this.audio.isPlaying && (this.audio.mode === 'inverno' || this.audio.mode === 'file')) {
+        if (this.audio.isPlaying) {
           this.next();
         }
       });
 
+      this.audio.audioElement.addEventListener('play', () => {
+        this.audio.isPlaying = true;
+        this.updateMediaSession();
+        this.syncUI();
+      });
+
+      this.audio.audioElement.addEventListener('pause', () => {
+        this.audio.isPlaying = false;
+        this.updateMediaSession();
+        this.syncUI();
+      });
+
       this.audio.audioElement.addEventListener('timeupdate', () => {
         const curTrack = this.getCurrentTrack();
-        if (curTrack && (this.audio.mode === 'inverno' || this.audio.mode === 'file')) {
+        if (curTrack) {
           const start = curTrack.loopStart || 0;
           const end = curTrack.loopEnd || 0;
           const isLoopOn = curTrack.loopEnabled !== false;
@@ -4248,6 +4448,18 @@ class VoiceWatermarkEngine {
           }
         }
         this.updateProgressUI();
+        if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession) {
+          const el = this.audio.audioElement;
+          if (el && el.duration && !isNaN(el.duration)) {
+            try {
+              navigator.mediaSession.setPositionState({
+                duration: el.duration,
+                playbackRate: el.playbackRate || 1.0,
+                position: Math.max(0, Math.min(el.currentTime, el.duration))
+              });
+            } catch (e) {}
+          }
+        }
       });
     }
 
@@ -4261,49 +4473,28 @@ class VoiceWatermarkEngine {
         this.applyVisuals(track);
       }
 
-      if (track.type === 'audio') {
-        this.audio.initContext();
-        this.audio.stop();
-        this.audio.ensureAudioElement();
-        this.audio.audioElement.loop = false;
+      this.audio.initContext();
+      this.audio.stop();
+      this.audio.ensureAudioElement();
+      this.audio.audioElement.loop = false;
+      if (!this.audio.audioElement.src || !this.audio.audioElement.src.endsWith(track.src)) {
         this.audio.audioElement.src = track.src;
-        this.audio.mode = 'inverno';
-        this.audio.currentFileLabel = track.title.toUpperCase();
-        try {
-          if (track.loopStart > 0) {
-            this.audio.audioElement.currentTime = track.loopStart;
-          }
-          await this.audio.audioElement.play();
-          this.audio.isPlaying = true;
-        } catch (err) {
-          console.warn('Audio play error, falling back to synth:', err);
-          this.audio.startSynth();
+      }
+      this.audio.mode = 'inverno';
+      this.audio.currentFileLabel = track.title.toUpperCase();
+
+      try {
+        if (track.loopStart > 0) {
+          this.audio.audioElement.currentTime = track.loopStart;
         }
-      } else if (track.type === 'file') {
-        this.audio.initContext();
-        this.audio.stop();
-        this.audio.ensureAudioElement();
-        this.audio.audioElement.loop = false;
-        this.audio.audioElement.src = track.src;
-        this.audio.mode = 'file';
-        this.audio.currentFileLabel = track.title.toUpperCase();
-        try {
-          if (track.loopStart > 0) {
-            this.audio.audioElement.currentTime = track.loopStart;
-          }
-          await this.audio.audioElement.play();
-          this.audio.isPlaying = true;
-        } catch (err) {
-          console.warn('File play error:', err);
-        }
-      } else if (track.type === 'synth') {
-        this.audio.initContext();
-        this.audio.stop();
-        this.audio.trackIndex = track.synthIndex || 0;
-        this.audio.startSynth();
-        this.audio.currentFileLabel = track.title.toUpperCase();
+        await this.audio.audioElement.play();
+        this.audio.isPlaying = true;
+      } catch (err) {
+        console.warn('Audio waiting for user gesture or paused:', err);
+        this.audio.isPlaying = false;
       }
 
+      this.updateMediaSession(track);
       this.syncUI();
       this.renderPlaylistDrawer();
       if (this.audio.onStateChange) this.audio.onStateChange();
@@ -4344,6 +4535,12 @@ class VoiceWatermarkEngine {
 
       this.syncUI();
       this.renderPlaylistDrawer();
+
+      fetch('/api/like', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trackId: track.id })
+      }).catch(() => {});
     }
 
     toggleMode() {
@@ -4372,6 +4569,7 @@ class VoiceWatermarkEngine {
       localStorage.setItem('ldr_track_preset_' + track.id, JSON.stringify(track.preset));
       this.renderPlaylistDrawer();
       this.syncUI();
+      this.saveToServer();
     }
 
     removeTrack(index) {
@@ -4380,34 +4578,92 @@ class VoiceWatermarkEngine {
         alert('Você precisa manter pelo menos 1 beat na playlist!');
         return;
       }
+
+      const trackToRemove = this.tracks[index];
       const isCurrent = index === this.currentIndex;
+
+      if (trackToRemove && trackToRemove.id) {
+        try {
+          const removed = this.getRemovedTrackIds();
+          if (!removed.includes(trackToRemove.id)) {
+            removed.push(trackToRemove.id);
+            localStorage.setItem('ldr_removed_track_ids', JSON.stringify(removed));
+          }
+        } catch (e) {
+          console.error('Erro ao salvar remoção:', e);
+        }
+      }
+
+      if (this.editingId === trackToRemove.id) {
+        this.editingId = null;
+        this.editDraft = null;
+      }
+
       this.tracks.splice(index, 1);
+
       if (isCurrent) {
         this.currentIndex = Math.min(this.currentIndex, this.tracks.length - 1);
         this.playTrack(this.currentIndex, true);
       } else if (index < this.currentIndex) {
         this.currentIndex--;
       }
+
+      if (this.tagFilter && !this.getAllTags().some(([t]) => t === this.tagFilter)) {
+        this.tagFilter = null;
+      }
+
       this.renderPlaylistDrawer();
       this.syncUI();
+      this.saveToServer();
+      if (typeof showToast === 'function') {
+        showToast(`Beat “${trackToRemove.title}” removido.`);
+      }
     }
 
-    addFiles(files) {
+    async addFiles(files) {
       if (!files || files.length === 0) return;
       const startIdx = this.tracks.length;
+      const token = localStorage.getItem('ldr_producer_token') || sessionStorage.getItem('ldr_producer_token');
+
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const id = 'user_' + Date.now() + '_' + i;
         const cleanTitle = file.name.replace(/\.[^/.]+$/, "");
+        const id = 'moral_' + Date.now() + '_' + i;
+        let trackSrc = '';
+
+        if (token) {
+          try {
+            showToast(`Enviando "${cleanTitle}" para o armazenamento... ☁️`);
+            const uploadRes = await fetch('/api/upload', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'x-filename': encodeURIComponent(file.name),
+                'Content-Type': file.type || 'audio/mpeg'
+              },
+              body: file
+            });
+            if (uploadRes.ok) {
+              const uploadData = await uploadRes.json();
+              trackSrc = uploadData.src;
+            }
+          } catch (e) {
+            console.warn('Erro ao subir arquivo:', e);
+          }
+        }
+
+        if (!trackSrc) {
+          trackSrc = URL.createObjectURL(file);
+        }
+
         const newTrack = {
           id: id,
           title: cleanTitle,
           artist: 'JC_MORAL',
           bpm: 85,
-          type: 'file',
-          file: file,
-          src: URL.createObjectURL(file),
-          tags: [],
+          type: 'audio',
+          src: trackSrc,
+          tags: ['novo'],
           loopStart: 0,
           loopEnd: 0,
           loopEnabled: true,
@@ -4425,6 +4681,7 @@ class VoiceWatermarkEngine {
       }
       this.renderPlaylistDrawer();
       this.syncUI();
+      await this.saveToServer();
       this.playTrack(startIdx, true);
     }
 
@@ -4581,6 +4838,8 @@ class VoiceWatermarkEngine {
         const p = curTrack.preset;
         badgeEl.textContent = `PRESET ${p.scenery} / ${p.palette} / ${p.sketch}`.toUpperCase();
       }
+
+      this.updateMediaSession(curTrack);
     }
 
     renderTagFilter() {
@@ -4672,10 +4931,10 @@ class VoiceWatermarkEngine {
           </div>
 
           <div class="row-actions">
-            <span class="hint">Enter ou vírgula adiciona a tag</span>
-            <div class="flex items-center gap-3">
-              <button class="link edit-cancel">Cancelar</button>
-              <button class="btn btn-accent edit-save">Salvar</button>
+            <button type="button" class="link link-danger edit-delete-btn" title="Excluir permanentemente este beat">Excluir beat</button>
+            <div class="flex items-center gap-3" style="margin-left:auto">
+              <button type="button" class="link edit-cancel">Cancelar</button>
+              <button type="button" class="btn btn-accent edit-save">Salvar</button>
             </div>
           </div>
         </div>
@@ -4798,6 +5057,17 @@ class VoiceWatermarkEngine {
 
       card.querySelector('.edit-cancel').addEventListener('click', () => this.cancelEditing());
       card.querySelector('.edit-save').addEventListener('click', () => this.commitEditing());
+
+      const delBtn = card.querySelector('.edit-delete-btn');
+      if (delBtn) {
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const idx = this.tracks.findIndex((t) => t.id === d.id);
+          if (idx >= 0 && confirm(`Excluir permanentemente "${d.title}"?`)) {
+            this.removeTrack(idx);
+          }
+        });
+      }
     }
 
     renderPlaylistDrawer() {
@@ -4859,7 +5129,7 @@ class VoiceWatermarkEngine {
             <div class="track-actions">
               <button class="link track-edit-btn">Editar</button>
               <button class="link track-save-preset-btn" title="Gravar o visual atual da tela neste beat">Gravar visual</button>
-              ${track.type === 'file' ? '<button class="link link-danger track-del-btn">Remover</button>' : ''}
+              <button class="link link-danger track-del-btn" title="Remover este beat da playlist">Remover</button>
             </div>
           ` : ''}
 
@@ -4923,6 +5193,13 @@ class VoiceWatermarkEngine {
 
         container.appendChild(card);
       });
+
+      const restoreBtn = document.getElementById('btn-restore-default-beats');
+      if (restoreBtn) {
+        const removed = this.getRemovedTrackIds();
+        restoreBtn.classList.toggle('hidden', !isAdmin || removed.length === 0);
+        restoreBtn.textContent = `Restaurar originais (${removed.length})`;
+      }
     }
   }
 
@@ -4944,6 +5221,12 @@ class VoiceWatermarkEngine {
   let userRole = isDevAuthenticated ? 'admin' : 'visitor';
 
   const radio = new RadioPlaylistManager(audio);
+  // Apply initial track visual preset immediately from frame 1
+  const initialTrack = radio.getCurrentTrack();
+  if (initialTrack && initialTrack.preset && radio.mode === 'preset') {
+    radio.applyVisuals(initialTrack);
+  }
+
   const watermark = new VoiceWatermarkEngine(audio);
 
   function updateRoleUI() {
@@ -5047,6 +5330,8 @@ class VoiceWatermarkEngine {
       userRole = 'admin';
       localStorage.setItem('ldr_user_role', 'admin');
       localStorage.setItem('ldr_dev_authenticated', 'true');
+      localStorage.setItem('ldr_producer_token', enteredKey);
+      sessionStorage.setItem('ldr_producer_token', enteredKey);
 
       // Audio & Visual positive reaction
       audio.kickPulse = 1.0;
@@ -5104,6 +5389,8 @@ class VoiceWatermarkEngine {
     userRole = 'visitor';
     localStorage.setItem('ldr_user_role', 'visitor');
     localStorage.removeItem('ldr_dev_authenticated');
+    localStorage.removeItem('ldr_producer_token');
+    sessionStorage.removeItem('ldr_producer_token');
     updateRoleUI();
     showToast('Sessão Dev encerrada. Visão do Ouvinte ativada.');
   }
@@ -5197,6 +5484,20 @@ class VoiceWatermarkEngine {
       if (e.target.files) radio.addFiles(e.target.files);
     });
   }
+  const restoreDefaultBeatsBtn = document.getElementById('btn-restore-default-beats');
+  if (restoreDefaultBeatsBtn) {
+    restoreDefaultBeatsBtn.addEventListener('click', () => {
+      if (confirm('Restaurar todos os beats originais que foram removidos?')) {
+        radio.restoreDefaults();
+      }
+    });
+  }
+
+  document.querySelectorAll('.btn-open-dev-from-playlist').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      openDevModal();
+    });
+  });
   if (radioProgressBg) {
     radioProgressBg.addEventListener('click', (e) => {
       const rect = radioProgressBg.getBoundingClientRect();
