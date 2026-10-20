@@ -2,14 +2,12 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const db = require('./db');
 
 const PORT = process.env.PORT || 4321;
-const DATA_DIR = path.join(__dirname, 'data');
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
-const CATALOG_PATH = path.join(DATA_DIR, 'catalog.json');
 
-// Ensure directories exist
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+// Ensure uploads directory exists
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 // Producer master key verification (SHA-256 hash fallback)
@@ -42,7 +40,7 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon'
 };
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, HEAD, OPTIONS');
@@ -57,25 +55,46 @@ const server = http.createServer((req, res) => {
   const cleanUrl = req.url.split('?')[0];
 
   // =========================================================================
-  // API: GET /api/catalog
+  // API: GET /api/health
   // =========================================================================
-  if (req.method === 'GET' && cleanUrl === '/api/catalog') {
-    if (!fs.existsSync(CATALOG_PATH)) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Catálogo não inicializado' }));
-      return;
+  if (req.method === 'GET' && cleanUrl === '/api/health') {
+    try {
+      const tracks = await db.getAllTracks();
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        status: 'ok',
+        database: process.env.DATABASE_URL ? 'postgresql' : 'sqlite',
+        totalTracks: tracks.length,
+        timestamp: new Date().toISOString()
+      }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'error', error: err.message }));
     }
-    const data = fs.readFileSync(CATALOG_PATH, 'utf8');
-    res.writeHead(200, {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Cache-Control': 'no-store, no-cache, must-revalidate'
-    });
-    res.end(data);
     return;
   }
 
   // =========================================================================
-  // API: POST /api/catalog (Admin only - updates catalog for all users)
+  // API: GET /api/catalog (Served directly from Database)
+  // =========================================================================
+  if (req.method === 'GET' && cleanUrl === '/api/catalog') {
+    try {
+      const tracks = await db.getAllTracks();
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store, no-cache, must-revalidate'
+      });
+      res.end(JSON.stringify(tracks));
+    } catch (err) {
+      console.error('Erro ao buscar catálogo do banco:', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Erro ao carregar catálogo do banco de dados' }));
+    }
+    return;
+  }
+
+  // =========================================================================
+  // API: POST /api/catalog (Admin only - updates catalog in Database)
   // =========================================================================
   if (req.method === 'POST' && cleanUrl === '/api/catalog') {
     if (!verifyAuth(req)) {
@@ -86,7 +105,7 @@ const server = http.createServer((req, res) => {
 
     let body = '';
     req.on('data', (chunk) => { body += chunk; });
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const catalog = JSON.parse(body);
         if (!Array.isArray(catalog) || catalog.length === 0) {
@@ -94,12 +113,19 @@ const server = http.createServer((req, res) => {
           res.end(JSON.stringify({ error: 'Catálogo inválido (precisa ser uma lista de beats)' }));
           return;
         }
-        fs.writeFileSync(CATALOG_PATH, JSON.stringify(catalog, null, 2), 'utf8');
+
+        await db.saveAllTracks(catalog);
+
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ success: true, count: catalog.length, message: 'Catálogo salvo globalmente para todos os usuários.' }));
+        res.end(JSON.stringify({
+          success: true,
+          count: catalog.length,
+          message: 'Catálogo salvo com sucesso no banco de dados para todos os usuários.'
+        }));
       } catch (err) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'JSON malformado' }));
+        console.error('Erro ao salvar no banco:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Erro ao persistir catálogo no banco de dados: ' + err.message }));
       }
     });
     return;
@@ -144,78 +170,65 @@ const server = http.createServer((req, res) => {
   }
 
   // =========================================================================
-  // API: POST /api/like (Public - registers like for a beat in catalog.json)
+  // API: POST /api/like (Public - registers like for a beat in Database)
   // =========================================================================
   if (req.method === 'POST' && cleanUrl === '/api/like') {
     let body = '';
     req.on('data', (chunk) => { body += chunk; });
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const { trackId } = JSON.parse(body);
-        if (!trackId || !fs.existsSync(CATALOG_PATH)) {
+        if (!trackId) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'ID inválido' }));
           return;
         }
-        const catalog = JSON.parse(fs.readFileSync(CATALOG_PATH, 'utf8'));
-        const track = catalog.find((t) => t.id === trackId);
-        if (track) {
-          track.likes = (track.likes || 0) + 1;
-          fs.writeFileSync(CATALOG_PATH, JSON.stringify(catalog, null, 2), 'utf8');
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true, likes: track.likes }));
-          return;
-        }
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Faixa não encontrada' }));
+
+        const likes = await db.likeTrack(trackId);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, likes }));
       } catch (err) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Erro ao processar like' }));
+        console.error('Erro no like:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Erro ao processar curtida no banco de dados' }));
       }
     });
     return;
   }
 
   // =========================================================================
-  // STATIC FILES (including persistent /uploads/ audio files with Range support)
+  // STATIC FILES (including .mp3 audio with HTTP 206 Partial Content Range support)
   // =========================================================================
-  let filePath;
-  if (cleanUrl.startsWith('/uploads/')) {
-    const uploadFile = path.basename(cleanUrl.replace(/^\/uploads\//, ''));
-    filePath = path.join(UPLOADS_DIR, uploadFile);
-  } else {
-    const relativePath = cleanUrl === '/' ? 'index.html' : cleanUrl.replace(/^\/+/, '');
-    filePath = path.join(__dirname, relativePath);
-  }
+  let filePath = path.join(__dirname, cleanUrl === '/' ? 'index.html' : cleanUrl);
 
   fs.stat(filePath, (err, stats) => {
     if (err || !stats.isFile()) {
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-      res.end('Not found');
+      res.end('404 Not Found');
       return;
     }
 
     const ext = path.extname(filePath).toLowerCase();
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
     const totalSize = stats.size;
-
-    // Handle HTTP Range Requests (Essential for Chrome & Safari audio playback)
     const range = req.headers.range;
-    if (range) {
-      const parts = range.replace(/bytes=/, "").split("-");
+
+    // HTTP 206 Partial Content for instant audio scrubbing & Safari/Chrome compatibility
+    if (range && (ext === '.mp3' || ext === '.wav' || ext === '.ogg')) {
+      const parts = range.replace(/bytes=/, '').split('-');
       const start = parseInt(parts[0], 10);
       const end = parts[1] ? parseInt(parts[1], 10) : totalSize - 1;
 
       if (start >= totalSize || end >= totalSize || start > end) {
         res.writeHead(416, {
           'Content-Range': `bytes */${totalSize}`,
-          'Content-Type': 'text/plain'
+          'Content-Type': contentType
         });
-        res.end('Requested range not satisfiable');
+        res.end();
         return;
       }
 
-      const chunkSize = (end - start) + 1;
+      const chunkSize = end - start + 1;
       const fileStream = fs.createReadStream(filePath, { start, end });
 
       res.writeHead(206, {
@@ -240,7 +253,14 @@ const server = http.createServer((req, res) => {
   });
 });
 
-// Listen on all network interfaces (IPv4 and IPv6)
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`JC_MORAL Server running at http://0.0.0.0:${PORT}`);
+async function startServer() {
+  await db.initDb();
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`JC_MORAL Server running at http://0.0.0.0:${PORT} [Database: ${process.env.DATABASE_URL ? 'PostgreSQL' : 'SQLite'}]`);
+  });
+}
+
+startServer().catch((err) => {
+  console.error('Fatal startup error:', err);
+  process.exit(1);
 });

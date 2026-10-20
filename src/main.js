@@ -249,9 +249,9 @@ class AudioReactiveEngine {
       this.isPlaying = true;
       return true;
     } catch (e) {
-      console.warn('Fallback to synth if inverno.mp3 not reachable:', e);
-      this.startSynth();
-      return true;
+      console.warn('Audio waiting for user gesture or paused:', e);
+      this.isPlaying = false;
+      return false;
     }
   }
 
@@ -261,16 +261,12 @@ class AudioReactiveEngine {
       this.stop();
       return false;
     } else {
-      if (this.mode === 'inverno' || this.mode === 'file') {
-        this.ensureAudioElement();
-        if (!this.audioElement.src) {
-          this.playInverno();
-        } else {
-          this.audioElement.play();
-          this.isPlaying = true;
-        }
+      this.ensureAudioElement();
+      if (!this.audioElement.src) {
+        this.playInverno();
       } else {
-        this.startSynth();
+        this.audioElement.play().catch((err) => console.warn('Play error:', err));
+        this.isPlaying = true;
       }
       return true;
     }
@@ -1767,7 +1763,7 @@ function initApp() {
   // ==========================================================================
   // 5D. INTERACTIVE HEAD ACCESSORIES (Boné, Chapéu de Cowboy, Tranças Predador)
   // ==========================================================================
-  let currentAccessory = 'cap'; // 'none' | 'cap' | 'cowboy' | 'predator'
+  let currentAccessory = 'none'; // 'none' | 'cap' | 'cowboy' | 'predator'
 
   // --- ACCESSORY 1: BONÉ CYBER STREETWEAR (Snapback Cap) ---
   const capGroup = new THREE.Group();
@@ -2045,6 +2041,7 @@ function initApp() {
       btn.classList.toggle('active-pill', isSelected);
     });
   }
+  applyAccessory('none');
 
   function applyScenery(key) {
     currentScenery = key;
@@ -3990,12 +3987,12 @@ class VoiceWatermarkEngine {
       return [
         {
           id: 'inverno',
-          title: 'Inverno',
+          title: 'Inverno // Lofi Chill',
           artist: 'JC_MORAL',
           bpm: 82,
           type: 'audio',
           src: '/inverno.mp3',
-          tags: ['lo-fi', 'chill'],
+          tags: ['lo-fi', 'chill', 'autoral'],
           loopStart: 0,
           loopEnd: 0,
           loopEnabled: true,
@@ -4010,18 +4007,18 @@ class VoiceWatermarkEngine {
           }
         },
         {
-          id: 'cyber-drift',
-          title: 'Cyber Drift',
+          id: 'moral-drill',
+          title: 'Moral Densidade // Cyber Drill',
           artist: 'JC_MORAL',
-          bpm: 82,
-          type: 'synth',
-          synthIndex: 0,
-          tags: ['synth', 'lo-fi'],
+          bpm: 88,
+          type: 'audio',
+          src: '/untitled-46.mp3',
+          tags: ['drill', 'cyber', 'autoral'],
           loopStart: 0,
           loopEnd: 0,
           loopEnabled: true,
           maxLoops: 0,
-          likes: parseInt(localStorage.getItem('ldr_likes_cyber-drift') || '28', 10),
+          likes: parseInt(localStorage.getItem('ldr_likes_moral-drill') || '58', 10),
           preset: {
             scenery: 'cybercode',
             palette: 'cytro',
@@ -4031,45 +4028,24 @@ class VoiceWatermarkEngine {
           }
         },
         {
-          id: 'zima-nebula',
-          title: 'Zima Nebula',
+          id: 'voz1-session',
+          title: 'Voz Sessions // Boombap 84',
           artist: 'JC_MORAL',
-          bpm: 72,
-          type: 'synth',
-          synthIndex: 1,
-          tags: ['ambient', 'synth'],
+          bpm: 84,
+          type: 'audio',
+          src: '/voz1.mp3',
+          tags: ['boombap', 'analog', 'autoral'],
           loopStart: 0,
           loopEnd: 0,
           loopEnabled: true,
           maxLoops: 0,
-          likes: parseInt(localStorage.getItem('ldr_likes_zima-nebula') || '56', 10),
+          likes: parseInt(localStorage.getItem('ldr_likes_voz1-session') || '64', 10),
           preset: {
             scenery: 'valley3d',
             palette: 'kvrc',
             accessory: 'cowboy',
             sketch: 'earcups',
-            intensity: 0.70
-          }
-        },
-        {
-          id: 'street-sk8',
-          title: 'Street Sk8 Anthem',
-          artist: 'JC_MORAL',
-          bpm: 88,
-          type: 'synth',
-          synthIndex: 0,
-          tags: ['drill'],
-          loopStart: 0,
-          loopEnd: 0,
-          loopEnabled: true,
-          maxLoops: 0,
-          likes: parseInt(localStorage.getItem('ldr_likes_street-sk8') || '73', 10),
-          preset: {
-            scenery: 'street',
-            palette: 'scratch',
-            accessory: 'predator',
-            sketch: 'devil',
-            intensity: 1.05
+            intensity: 0.85
           }
         }
       ];
@@ -4111,6 +4087,9 @@ class VoiceWatermarkEngine {
             if (this.currentIndex >= this.tracks.length) this.currentIndex = 0;
             this.syncUI();
             this.renderPlaylistDrawer();
+            if (this.mode === 'preset') {
+              this.applyVisuals(this.getCurrentTrack());
+            }
           }
         }
       } catch (err) {
@@ -4199,7 +4178,95 @@ class VoiceWatermarkEngine {
       });
 
       this.initAudioHooks();
+      this.setupMediaSession();
       this.loadFromServer();
+    }
+
+    setupMediaSession() {
+      if (!('mediaSession' in navigator)) return;
+
+      try {
+        navigator.mediaSession.setActionHandler('play', () => {
+          if (!this.audio.isPlaying) {
+            this.togglePlay();
+          }
+        });
+
+        navigator.mediaSession.setActionHandler('pause', () => {
+          if (this.audio.isPlaying) {
+            this.togglePlay();
+          }
+        });
+
+        navigator.mediaSession.setActionHandler('previoustrack', () => {
+          this.prev();
+        });
+
+        navigator.mediaSession.setActionHandler('nexttrack', () => {
+          this.next();
+        });
+
+        navigator.mediaSession.setActionHandler('seekto', (details) => {
+          if (typeof details.seekTime === 'number' && this.audio.audioElement) {
+            const el = this.audio.audioElement;
+            el.currentTime = Math.max(0, Math.min(details.seekTime, el.duration || details.seekTime));
+            this.updateProgressUI();
+          }
+        });
+
+        navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+          const skip = details.seekOffset || 10;
+          if (this.audio.audioElement) {
+            this.audio.audioElement.currentTime = Math.max(0, this.audio.audioElement.currentTime - skip);
+            this.updateProgressUI();
+          }
+        });
+
+        navigator.mediaSession.setActionHandler('seekforward', (details) => {
+          const skip = details.seekOffset || 10;
+          if (this.audio.audioElement && this.audio.audioElement.duration) {
+            this.audio.audioElement.currentTime = Math.min(this.audio.audioElement.duration, this.audio.audioElement.currentTime + skip);
+            this.updateProgressUI();
+          }
+        });
+
+        navigator.mediaSession.setActionHandler('stop', () => {
+          this.audio.stop();
+          this.syncUI();
+        });
+      } catch (err) {
+        console.warn('MediaSession handler setup warning:', err);
+      }
+    }
+
+    updateMediaSession(track) {
+      if (!('mediaSession' in navigator)) return;
+      if (!track) track = this.getCurrentTrack();
+      if (!track) return;
+
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: track.title,
+          artist: `${track.artist || 'JC_MORAL'} • 100% Autoral (Sem IA)`,
+          album: 'JC_MORAL // Sound Lab',
+          artwork: [
+            { src: '/favicon.ico', sizes: '64x64', type: 'image/x-icon' }
+          ]
+        });
+
+        navigator.mediaSession.playbackState = this.audio.isPlaying ? 'playing' : 'paused';
+
+        const el = this.audio.audioElement;
+        if (el && el.duration && !isNaN(el.duration) && 'setPositionState' in navigator.mediaSession) {
+          navigator.mediaSession.setPositionState({
+            duration: el.duration,
+            playbackRate: el.playbackRate || 1.0,
+            position: Math.max(0, Math.min(el.currentTime, el.duration))
+          });
+        }
+      } catch (e) {
+        console.warn('MediaSession metadata update warning:', e);
+      }
     }
 
     loadMeta(track) {
@@ -4343,14 +4410,26 @@ class VoiceWatermarkEngine {
           return;
         }
 
-        if (this.audio.isPlaying && (this.audio.mode === 'inverno' || this.audio.mode === 'file')) {
+        if (this.audio.isPlaying) {
           this.next();
         }
       });
 
+      this.audio.audioElement.addEventListener('play', () => {
+        this.audio.isPlaying = true;
+        this.updateMediaSession();
+        this.syncUI();
+      });
+
+      this.audio.audioElement.addEventListener('pause', () => {
+        this.audio.isPlaying = false;
+        this.updateMediaSession();
+        this.syncUI();
+      });
+
       this.audio.audioElement.addEventListener('timeupdate', () => {
         const curTrack = this.getCurrentTrack();
-        if (curTrack && (this.audio.mode === 'inverno' || this.audio.mode === 'file')) {
+        if (curTrack) {
           const start = curTrack.loopStart || 0;
           const end = curTrack.loopEnd || 0;
           const isLoopOn = curTrack.loopEnabled !== false;
@@ -4369,6 +4448,18 @@ class VoiceWatermarkEngine {
           }
         }
         this.updateProgressUI();
+        if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession) {
+          const el = this.audio.audioElement;
+          if (el && el.duration && !isNaN(el.duration)) {
+            try {
+              navigator.mediaSession.setPositionState({
+                duration: el.duration,
+                playbackRate: el.playbackRate || 1.0,
+                position: Math.max(0, Math.min(el.currentTime, el.duration))
+              });
+            } catch (e) {}
+          }
+        }
       });
     }
 
@@ -4382,49 +4473,28 @@ class VoiceWatermarkEngine {
         this.applyVisuals(track);
       }
 
-      if (track.type === 'audio') {
-        this.audio.initContext();
-        this.audio.stop();
-        this.audio.ensureAudioElement();
-        this.audio.audioElement.loop = false;
+      this.audio.initContext();
+      this.audio.stop();
+      this.audio.ensureAudioElement();
+      this.audio.audioElement.loop = false;
+      if (!this.audio.audioElement.src || !this.audio.audioElement.src.endsWith(track.src)) {
         this.audio.audioElement.src = track.src;
-        this.audio.mode = 'inverno';
-        this.audio.currentFileLabel = track.title.toUpperCase();
-        try {
-          if (track.loopStart > 0) {
-            this.audio.audioElement.currentTime = track.loopStart;
-          }
-          await this.audio.audioElement.play();
-          this.audio.isPlaying = true;
-        } catch (err) {
-          console.warn('Audio play error, falling back to synth:', err);
-          this.audio.startSynth();
+      }
+      this.audio.mode = 'inverno';
+      this.audio.currentFileLabel = track.title.toUpperCase();
+
+      try {
+        if (track.loopStart > 0) {
+          this.audio.audioElement.currentTime = track.loopStart;
         }
-      } else if (track.type === 'file') {
-        this.audio.initContext();
-        this.audio.stop();
-        this.audio.ensureAudioElement();
-        this.audio.audioElement.loop = false;
-        this.audio.audioElement.src = track.src;
-        this.audio.mode = 'file';
-        this.audio.currentFileLabel = track.title.toUpperCase();
-        try {
-          if (track.loopStart > 0) {
-            this.audio.audioElement.currentTime = track.loopStart;
-          }
-          await this.audio.audioElement.play();
-          this.audio.isPlaying = true;
-        } catch (err) {
-          console.warn('File play error:', err);
-        }
-      } else if (track.type === 'synth') {
-        this.audio.initContext();
-        this.audio.stop();
-        this.audio.trackIndex = track.synthIndex || 0;
-        this.audio.startSynth();
-        this.audio.currentFileLabel = track.title.toUpperCase();
+        await this.audio.audioElement.play();
+        this.audio.isPlaying = true;
+      } catch (err) {
+        console.warn('Audio waiting for user gesture or paused:', err);
+        this.audio.isPlaying = false;
       }
 
+      this.updateMediaSession(track);
       this.syncUI();
       this.renderPlaylistDrawer();
       if (this.audio.onStateChange) this.audio.onStateChange();
@@ -4768,6 +4838,8 @@ class VoiceWatermarkEngine {
         const p = curTrack.preset;
         badgeEl.textContent = `PRESET ${p.scenery} / ${p.palette} / ${p.sketch}`.toUpperCase();
       }
+
+      this.updateMediaSession(curTrack);
     }
 
     renderTagFilter() {
@@ -5149,6 +5221,12 @@ class VoiceWatermarkEngine {
   let userRole = isDevAuthenticated ? 'admin' : 'visitor';
 
   const radio = new RadioPlaylistManager(audio);
+  // Apply initial track visual preset immediately from frame 1
+  const initialTrack = radio.getCurrentTrack();
+  if (initialTrack && initialTrack.preset && radio.mode === 'preset') {
+    radio.applyVisuals(initialTrack);
+  }
+
   const watermark = new VoiceWatermarkEngine(audio);
 
   function updateRoleUI() {
